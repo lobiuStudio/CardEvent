@@ -21,6 +21,7 @@ model User {
   reviewDecisions    ReviewDecision[]
   scores             Score[]
   judgeComments      JudgeComment[]
+  paymentProofs      PaymentProof[]
   verificationTokens EmailVerificationToken[]
 }
 
@@ -74,6 +75,8 @@ model Activity {
   submissions      Submission[]
   judgeInvitations JudgeInvitation[]
   judgeMemberships JudgeMembership[]
+  paymentProofs    PaymentProof[]
+  scores           Score[]
 }
 
 model ActivityGroup {
@@ -86,6 +89,7 @@ model ActivityGroup {
   submissions Submission[]
 
   @@unique([activityId, name])
+  @@unique([activityId, id])
 }
 
 model GradingCriterion {
@@ -97,6 +101,8 @@ model GradingCriterion {
 
   activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
   scores   Score[]
+
+  @@unique([activityId, id])
 }
 
 model JudgeInvitation {
@@ -142,13 +148,16 @@ model Submission {
 
   activity        Activity           @relation(fields: [activityId], references: [id], onDelete: Cascade)
   participant     User               @relation(fields: [participantId], references: [id], onDelete: Cascade)
-  group           ActivityGroup?     @relation(fields: [groupId], references: [id])
+  group           ActivityGroup?     @relation(fields: [activityId, groupId], references: [activityId, id])
   images          SubmissionImage[]
   paymentProofs   PaymentProof[]
   reviewDecisions ReviewDecision[]
   scores          Score[]
   judgeComments   JudgeComment[]
   resultSnapshot  ResultSnapshot?
+
+  @@unique([activityId, id])
+  @@unique([activityId, participantId, id])
 }
 
 model SubmissionImage {
@@ -181,7 +190,9 @@ model PaymentProof {
   reviewedAt      DateTime?
   createdAt       DateTime  @default(now())
 
-  submission Submission? @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  activity    Activity    @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  participant User        @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  submission  Submission? @relation(fields: [activityId, participantId, submissionId], references: [activityId, participantId, id], onDelete: Cascade)
 }
 
 model ReviewDecision {
@@ -198,6 +209,7 @@ model ReviewDecision {
 
 model Score {
   id           String   @id @default(cuid())
+  activityId   String
   judgeId      String
   submissionId String
   criterionId  String
@@ -205,9 +217,10 @@ model Score {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  activity   Activity         @relation(fields: [activityId], references: [id], onDelete: Cascade)
   judge      User             @relation(fields: [judgeId], references: [id], onDelete: Cascade)
-  submission Submission       @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  criterion  GradingCriterion @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+  submission Submission       @relation(fields: [activityId, submissionId], references: [activityId, id], onDelete: Cascade)
+  criterion  GradingCriterion @relation(fields: [activityId, criterionId], references: [activityId, id], onDelete: Cascade)
 
   @@unique([judgeId, submissionId, criterionId])
 }

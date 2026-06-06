@@ -1,3 +1,4 @@
+import "dotenv/config";
 import bcrypt from "bcryptjs";
 import { prisma } from "../src/lib/db/prisma";
 
@@ -6,13 +7,25 @@ async function main() {
   const password = process.env.INITIAL_ADMIN_PASSWORD ?? "change-this-password";
   const displayName = process.env.INITIAL_ADMIN_DISPLAY_NAME ?? "Admin";
 
-  const passwordHash = await bcrypt.hash(password, 12);
-
-  const user = await prisma.user.upsert({
+  const existingUser = await prisma.user.findUnique({
     where: { email },
-    update: { passwordHash, displayName, emailVerifiedAt: new Date() },
-    create: { email, passwordHash, displayName, emailVerifiedAt: new Date() },
   });
+
+  const user = existingUser
+    ? existingUser.emailVerifiedAt
+      ? existingUser
+      : await prisma.user.update({
+          where: { id: existingUser.id },
+          data: { emailVerifiedAt: new Date() },
+        })
+    : await prisma.user.create({
+        data: {
+          email,
+          passwordHash: await bcrypt.hash(password, 12),
+          displayName,
+          emailVerifiedAt: new Date(),
+        },
+      });
 
   await prisma.userRole.upsert({
     where: { userId_role: { userId: user.id, role: "admin" } },
