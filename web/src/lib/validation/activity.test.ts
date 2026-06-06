@@ -31,7 +31,63 @@ describe("createActivitySchema", () => {
     expect(parsed.maxImagesPerSubmission).toBe(4);
   });
 
-  it("requires submission, judging, and announcement dates to be chronological", () => {
+  it.each(["false", "0"])("parses %s boolean input as false", (booleanInput) => {
+    const parsed = createActivitySchema.parse({
+      ...validActivityInput,
+      reviewRequired: booleanInput,
+      anonymousJudging: booleanInput,
+      paymentRequired: booleanInput,
+    });
+
+    expect(parsed.reviewRequired).toBe(false);
+    expect(parsed.anonymousJudging).toBe(false);
+    expect(parsed.paymentRequired).toBe(false);
+  });
+
+  it("requires non-empty trimmed payment instructions when payment is required", () => {
+    const parsed = createActivitySchema.safeParse({
+      ...validActivityInput,
+      paymentRequired: true,
+      paymentInstructions: "   ",
+    });
+
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues.map((issue) => issue.path.join("."))).toContain("paymentInstructions");
+  });
+
+  it("trims group and criterion names from JSON input", () => {
+    const parsed = createActivitySchema.parse({
+      ...validActivityInput,
+      groups: [{ name: " Open ", displayOrder: 0 }],
+      criteria: [{ name: " Condition ", displayOrder: 0 }],
+    });
+
+    expect(parsed.groups[0]?.name).toBe("Open");
+    expect(parsed.criteria[0]?.name).toBe("Condition");
+  });
+
+  it("rejects empty and duplicate trimmed group and criterion names", () => {
+    const parsed = createActivitySchema.safeParse({
+      ...validActivityInput,
+      groups: [
+        { name: "Open", displayOrder: 0 },
+        { name: " Open ", displayOrder: 1 },
+        { name: "   ", displayOrder: 2 },
+      ],
+      criteria: [
+        { name: "Condition", displayOrder: 0 },
+        { name: " Condition ", displayOrder: 1 },
+        { name: "   ", displayOrder: 2 },
+      ],
+    });
+
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues.map((issue) => issue.path.join("."))).toEqual(
+      expect.arrayContaining(["groups.1.name", "groups.2.name", "criteria.1.name", "criteria.2.name"]),
+    );
+  });
+
+  it("requires submission, judging, and announcement dates to be strictly chronological", () => {
     const parsed = createActivitySchema.safeParse({
       ...validActivityInput,
       submissionDeadlineAt: "2026-06-30T00:00:00.000Z",
@@ -43,5 +99,37 @@ describe("createActivitySchema", () => {
     expect(parsed.error?.issues.map((issue) => issue.path.join("."))).toEqual(
       expect.arrayContaining(["submissionDeadlineAt", "expectedResultAnnouncementAt"]),
     );
+  });
+
+  it.each([
+    {
+      name: "submission deadline equals submission start",
+      overrides: {
+        submissionDeadlineAt: validActivityInput.submissionStartAt,
+      },
+      path: "submissionDeadlineAt",
+    },
+    {
+      name: "judging deadline equals submission deadline",
+      overrides: {
+        judgingDeadlineAt: validActivityInput.submissionDeadlineAt,
+      },
+      path: "judgingDeadlineAt",
+    },
+    {
+      name: "expected results equals judging deadline",
+      overrides: {
+        expectedResultAnnouncementAt: validActivityInput.judgingDeadlineAt,
+      },
+      path: "expectedResultAnnouncementAt",
+    },
+  ])("rejects equal dates when $name", ({ overrides, path }) => {
+    const parsed = createActivitySchema.safeParse({
+      ...validActivityInput,
+      ...overrides,
+    });
+
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues.map((issue) => issue.path.join("."))).toContain(path);
   });
 });
