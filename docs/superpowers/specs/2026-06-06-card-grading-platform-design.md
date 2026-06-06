@@ -17,6 +17,7 @@ Both modes share the same account, activity, upload, review, payment proof, judg
 - Let judges independently grade all eligible submissions for an activity.
 - Calculate final grading scores from all judge criteria scores and round to the nearest 0.5.
 - Let admins review and publish final results.
+- Provide a mobile-first user experience because most participants and judges are expected to use the website on phones.
 - Keep the MVP practical by avoiding payment gateway integration, complex judge assignment, weighting, or automatic tie-breakers.
 
 ## Non-Goals For MVP
@@ -97,6 +98,67 @@ Anyone can view:
 - Payment instructions, if the activity is paid.
 
 Submitting cards, viewing own status, and viewing own final results require login.
+
+## Mobile-First UX Requirements
+
+The primary UX target is mobile web in portrait orientation. Desktop and tablet layouts should be supported, but they are secondary expansions of the mobile experience rather than the starting point.
+
+### General Mobile Principles
+
+- All core participant and judge workflows must work comfortably on 360px to 430px wide mobile screens.
+- Pages must avoid horizontal scrolling.
+- Primary actions should be thumb-friendly and placed near the bottom of the screen where appropriate, especially submit, save, next, score, upload, and publish-review actions.
+- Interactive targets should be at least 44px high and wide where practical. Dense text links may follow WCAG minimum target rules, but primary controls should use the larger mobile target.
+- Forms should use one-column layouts on mobile.
+- Long forms should use progressive disclosure, step-based sections, or collapsible optional fields.
+- Required fields should be visually clear. Optional fields should not make the submission flow feel long or bureaucratic.
+- Mobile browsers' safe areas and bottom browser toolbars must be considered so sticky bottom actions do not become hidden or hard to tap.
+- Loading, upload, validation, and save states must be explicit and visible on small screens.
+
+### Participant Mobile UX
+
+Participant workflows should prioritize speed and confidence:
+
+- Activity detail pages should show the most important information first: status, deadlines, submission button, rules summary, payment requirement, and grading criteria.
+- Card submission should feel like a guided flow: card details, image upload, optional details, payment proof if needed, review and submit.
+- Image upload should support choosing from the camera or photo library where the browser allows it.
+- Uploaded images should show mobile-friendly thumbnails, upload progress, validation errors, and a clear way to remove or replace images before the deadline.
+- Submission status should be shown with short, plain labels such as pending review, rejected, payment pending, eligible for judging, judging, and completed.
+- Rejection reasons should be easy to find and paired with the action to edit and resubmit when the deadline still allows it.
+
+### Judge Mobile UX
+
+Judge workflows should make repeated scoring efficient:
+
+- The judging dashboard should show remaining cards, completed cards, deadline, and progress.
+- Judges should be able to score one card at a time with clear next and previous navigation.
+- Card images should support zooming or opening a larger mobile-friendly viewer.
+- Criteria scoring controls must support 0.5 increments without requiring difficult text entry. A segmented stepper, slider with fixed stops, or numeric control can be used if it remains accessible.
+- The optional overall comment should be available but not visually dominant.
+- A sticky progress or save state should make it clear whether the current card's scores are saved.
+
+### Admin Mobile UX
+
+Admin workflows may be more data-heavy, but must still be usable on mobile:
+
+- Admin tables should collapse into scan-friendly cards or grouped lists on mobile.
+- Filters and sort controls can use bottom sheets or compact panels.
+- Dashboards should prioritize actionable queues: pending review, pending payment, missing scores, and ready to publish.
+- Activity creation should be a wizard or sectioned form so admins do not face one very long mobile page.
+- CSV export and result publishing should require clear confirmation states on mobile.
+
+### Visual Direction And 2026 UI/UX Influence
+
+The visual design should reference current 2026 UI/UX direction pragmatically:
+
+- Clean, low-noise layouts with strong information hierarchy.
+- Content-first screens that make deadlines, status, scores, and actions obvious.
+- Accessible color contrast and readable type over decorative effects.
+- Subtle tactile or hand-crafted visual details that fit hand-drawn card grading, such as paper-like surfaces, restrained texture, or scan-like image framing.
+- Gentle motion for state changes, upload progress, and scoring feedback, while respecting reduced-motion preferences.
+- Adaptive role-based dashboards so participants, judges, and admins see the tasks relevant to them first.
+
+The design should not chase trends that reduce clarity. Heavy glass effects, excessive animation, decorative gradients, or AI-style visual gimmicks should be avoided unless they directly improve comprehension or trust.
 
 ## Submission Workflow
 
@@ -402,6 +464,9 @@ Core testing should cover:
 - Result publish gating.
 - Private versus public result visibility.
 - CSV export content.
+- Mobile viewport coverage for participant submission, judge scoring, admin review, payment proof review, and result publishing.
+- Touch target checks for primary mobile controls.
+- Upload and scoring flows on common mobile widths, including 360px, 390px, 414px, and 430px.
 
 ## Open Implementation Decisions
 
