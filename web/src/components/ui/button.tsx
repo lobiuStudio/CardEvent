@@ -11,9 +11,10 @@ const variants = {
   danger: "bg-red-600 text-white hover:bg-red-700",
 };
 
-export function Button({ variant = "primary", className = "", children, ...props }: ButtonProps) {
+export function Button({ variant = "primary", className = "", children, type = "button", ...props }: ButtonProps) {
   return (
     <button
+      type={type}
       className={`min-h-11 rounded-md px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${variants[variant]} ${className}`}
       {...props}
     >

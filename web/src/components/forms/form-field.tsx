@@ -1,22 +1,43 @@
 import type { ReactNode } from "react";
 
+type FormFieldRenderProps = {
+  id: string;
+  describedBy?: string;
+  invalid: boolean;
+};
+
 export function FormField({
+  id,
   label,
   hint,
   error,
   children,
 }: {
+  id: string;
   label: string;
   hint?: string;
   error?: string;
-  children: ReactNode;
+  children: (field: FormFieldRenderProps) => ReactNode;
 }) {
+  const hintId = hint ? `${id}-hint` : undefined;
+  const errorId = error ? `${id}-error` : undefined;
+  const describedBy = [hintId, errorId].filter(Boolean).join(" ") || undefined;
+  const invalid = Boolean(error);
+
   return (
-    <label className="grid gap-1.5 text-sm font-medium text-zinc-900">
-      <span>{label}</span>
-      {children}
-      {hint ? <span className="text-xs font-normal text-zinc-500">{hint}</span> : null}
-      {error ? <span className="text-xs font-normal text-red-600">{error}</span> : null}
-    </label>
+    <div className="grid gap-1.5 text-sm font-medium text-zinc-900">
+      <label htmlFor={id}>{label}</label>
+      {children({ id, describedBy, invalid })}
+      {hint ? (
+        <span id={hintId} className="text-xs font-normal text-zinc-500">
+          {hint}
+        </span>
+      ) : null}
+      {error ? (
+        <span id={errorId} className="text-xs font-normal text-red-600">
+          {error}
+        </span>
+      ) : null}
+    </div>
   );
 }
