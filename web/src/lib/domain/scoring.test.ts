@@ -51,6 +51,24 @@ describe("calculateFinalScore", () => {
   it("rejects empty score lists", () => {
     expect(() => calculateFinalScore([])).toThrow("At least one score is required");
   });
+
+  it("rejects duplicate scores from the same judge for the same criterion", () => {
+    expect(() =>
+      calculateFinalScore([
+        { judgeId: "judge-1", criterionId: "creativity", score: 8 },
+        { judgeId: "judge-1", criterionId: "creativity", score: 9 },
+      ]),
+    ).toThrow("Duplicate score for judge and criterion");
+  });
+
+  it("allows distinct judge and criterion pairs with overlapping id text", () => {
+    expect(
+      calculateFinalScore([
+        { judgeId: "judge:1", criterionId: "creativity", score: 8 },
+        { judgeId: "judge", criterionId: "1:creativity", score: 9 },
+      ]).finalScore,
+    ).toBe(8.5);
+  });
 });
 
 describe("rankCompetitionResults", () => {
@@ -67,6 +85,24 @@ describe("rankCompetitionResults", () => {
       { submissionId: "card-b", groupId: "open", finalScore: 9, rank: 1 },
       { submissionId: "card-c", groupId: "open", finalScore: 8.5, rank: 3 },
       { submissionId: "card-d", groupId: "junior", finalScore: 7, rank: 1 },
+    ]);
+  });
+
+  it("sorts results by score descending within each group before ranking", () => {
+    expect(
+      rankCompetitionResults([
+        { submissionId: "card-c", groupId: "open", finalScore: 8.5 },
+        { submissionId: "card-a", groupId: "open", finalScore: 9 },
+        { submissionId: "card-d", groupId: "junior", finalScore: 7 },
+        { submissionId: "card-b", groupId: "open", finalScore: 9 },
+        { submissionId: "card-e", groupId: "junior", finalScore: 8 },
+      ]),
+    ).toEqual([
+      { submissionId: "card-a", groupId: "open", finalScore: 9, rank: 1 },
+      { submissionId: "card-b", groupId: "open", finalScore: 9, rank: 1 },
+      { submissionId: "card-c", groupId: "open", finalScore: 8.5, rank: 3 },
+      { submissionId: "card-e", groupId: "junior", finalScore: 8, rank: 1 },
+      { submissionId: "card-d", groupId: "junior", finalScore: 7, rank: 2 },
     ]);
   });
 });

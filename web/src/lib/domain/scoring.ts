@@ -46,8 +46,16 @@ export function calculateFinalScore(scores: ScoreInput[]): FinalScoreResult {
     throw new Error("At least one score is required");
   }
 
+  const seenJudgeCriterionScores = new Set<string>();
+
   for (const score of scores) {
     validateHalfPointScore(score.score);
+
+    const judgeCriterionKey = JSON.stringify([score.judgeId, score.criterionId]);
+    if (seenJudgeCriterionScores.has(judgeCriterionKey)) {
+      throw new Error("Duplicate score for judge and criterion");
+    }
+    seenJudgeCriterionScores.add(judgeCriterionKey);
   }
 
   const rawAverage = scores.reduce((sum, score) => sum + score.score, 0) / scores.length;
