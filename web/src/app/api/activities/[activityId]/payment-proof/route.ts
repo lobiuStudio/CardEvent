@@ -4,8 +4,9 @@ import { createSameOriginUrl } from "@/lib/auth/redirect";
 import { getCrossSiteRequestResponse } from "@/lib/auth/request-security";
 import { createPaymentProof } from "@/lib/db/payment-repository";
 import { prisma } from "@/lib/db/prisma";
-import { deleteLocalStoredFile, localFileStorage } from "@/lib/files/local-file-storage";
 import type { StoredFile } from "@/lib/files/file-storage";
+import { deleteLocalStoredFile } from "@/lib/files/local-file-storage";
+import { getFileStorage } from "@/lib/files/storage-provider";
 import { readValidatedImageFile, type ValidatedImageFile } from "@/lib/validation/submission";
 
 export const runtime = "nodejs";
@@ -164,9 +165,10 @@ export async function POST(request: Request, { params }: RouteContext): Promise<
   }
 
   let stagedFile: StoredFile;
+  const fileStorage = getFileStorage();
 
   try {
-    stagedFile = await localFileStorage.savePaymentProof({
+    stagedFile = await fileStorage.savePaymentProof({
       activitySlug: activity.slug,
       ownerId: storageOwnerId,
       file: proofFile,

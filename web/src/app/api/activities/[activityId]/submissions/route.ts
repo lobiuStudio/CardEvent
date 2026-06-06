@@ -12,8 +12,9 @@ import {
 import { prisma } from "@/lib/db/prisma";
 import { sendEmail } from "@/lib/email/email-service";
 import { submissionReceivedEmail } from "@/lib/email/messages";
-import { deleteLocalStoredFile, localFileStorage } from "@/lib/files/local-file-storage";
 import type { StoredFile } from "@/lib/files/file-storage";
+import { deleteLocalStoredFile } from "@/lib/files/local-file-storage";
+import { getFileStorage } from "@/lib/files/storage-provider";
 import { readValidatedImageFile, submissionInputSchema } from "@/lib/validation/submission";
 
 export const runtime = "nodejs";
@@ -169,10 +170,11 @@ export async function POST(request: Request, { params }: RouteContext): Promise<
 
   const submissionId = randomUUID();
   const stagedFiles: StoredFile[] = [];
+  const fileStorage = getFileStorage();
 
   try {
     for (const [index, file] of imageFiles.entries()) {
-      const storedFile = await localFileStorage.saveSubmissionImage({
+      const storedFile = await fileStorage.saveSubmissionImage({
         activitySlug: activity.slug,
         submissionId,
         file,
