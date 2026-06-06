@@ -1,3 +1,5 @@
+import type { ValidatedImageFile } from "@/lib/validation/submission";
+
 export type StoredFile = {
   provider: "local" | "google_drive";
   fileId: string;
@@ -11,6 +13,7 @@ export type SaveSubmissionImageInput = {
   activitySlug: string;
   submissionId: string;
   file: File;
+  validatedImage?: ValidatedImageFile;
 };
 
 export type SavePaymentProofInput = {

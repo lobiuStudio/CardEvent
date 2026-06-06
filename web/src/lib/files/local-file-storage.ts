@@ -1,11 +1,14 @@
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, unlink, writeFile } from "fs/promises";
 import { randomUUID } from "crypto";
+import { fileTypeFromBuffer } from "file-type";
 import path from "path";
 import type { FileStorage, SavePaymentProofInput, SaveSubmissionImageInput, StoredFile } from "./file-storage";
+import { readValidatedImageFile } from "@/lib/validation/submission";
 
 const unsafeFilenameCharacters = /[^a-zA-Z0-9._-]/g;
+const safeUploadPathSegment = /^[a-zA-Z0-9._-]+$/;
 
-function getUploadRoot(): string {
+export function getLocalUploadRoot(): string {
   return path.resolve(process.cwd(), process.env.LOCAL_UPLOAD_ROOT ?? "./uploads");
 }
 
@@ -15,36 +18,125 @@ function sanitizePathSegment(value: string): string {
   return sanitized === "." || sanitized === ".." ? "file" : sanitized;
 }
 
-function toPublicUploadUrl(fileId: string): string {
-  return `/uploads/${fileId.split(path.sep).map(encodeURIComponent).join("/")}`;
+function isSafeUploadPathSegment(value: string): boolean {
+  return safeUploadPathSegment.test(value) && value !== "." && value !== "..";
 }
 
-async function saveFile(file: File, directoryParts: string[]): Promise<StoredFile> {
-  const uploadRoot = getUploadRoot();
+export function resolveLocalUploadPath(pathSegments: string[]): string | null {
+  if (pathSegments.length === 0 || pathSegments.some((segment) => !isSafeUploadPathSegment(segment))) {
+    return null;
+  }
+
+  const uploadRoot = getLocalUploadRoot();
+  const resolvedPath = path.resolve(uploadRoot, ...pathSegments);
+
+  if (resolvedPath !== uploadRoot && resolvedPath.startsWith(`${uploadRoot}${path.sep}`)) {
+    return resolvedPath;
+  }
+
+  return null;
+}
+
+function toPublicUploadUrl(fileId: string): string {
+  return `/uploads/${fileId.split("/").map(encodeURIComponent).join("/")}`;
+}
+
+async function saveBytesFile({
+  bytes,
+  directoryParts,
+  extension,
+  mimeType,
+  originalName,
+}: {
+  bytes: Uint8Array;
+  directoryParts: string[];
+  extension: string;
+  mimeType: string;
+  originalName: string;
+}): Promise<StoredFile> {
   const safeDirectoryParts = directoryParts.map(sanitizePathSegment);
-  const originalName = file.name || "upload";
-  const storedName = `${Date.now()}-${randomUUID()}-${sanitizePathSegment(originalName)}`;
-  const relativePath = path.join(...safeDirectoryParts, storedName);
-  const absolutePath = path.join(uploadRoot, relativePath);
+  const storedName = `${Date.now()}-${randomUUID()}.${sanitizePathSegment(extension)}`;
+  const pathSegments = [...safeDirectoryParts, storedName];
+  const absolutePath = resolveLocalUploadPath(pathSegments);
+
+  if (!absolutePath) {
+    throw new Error("Unable to resolve a safe upload path.");
+  }
 
   await mkdir(path.dirname(absolutePath), { recursive: true });
-  await writeFile(absolutePath, Buffer.from(await file.arrayBuffer()));
+  await writeFile(absolutePath, bytes);
 
+  const fileId = pathSegments.join("/");
   return {
     provider: "local",
-    fileId: relativePath.split(path.sep).join("/"),
-    publicUrl: toPublicUploadUrl(relativePath),
+    fileId,
+    publicUrl: toPublicUploadUrl(fileId),
     originalName,
-    mimeType: file.type || "application/octet-stream",
-    fileSize: file.size,
+    mimeType,
+    fileSize: bytes.byteLength,
   };
 }
 
+async function saveImageFile({
+  file,
+  directoryParts,
+  validatedImage,
+}: SaveSubmissionImageInput & { directoryParts: string[] }): Promise<StoredFile> {
+  const image = validatedImage ?? (await readValidatedImageFile(file));
+
+  return saveBytesFile({
+    bytes: image.bytes,
+    directoryParts,
+    extension: image.extension,
+    mimeType: image.mimeType,
+    originalName: file.name || "upload",
+  });
+}
+
 export const localFileStorage: FileStorage = {
-  saveSubmissionImage({ activitySlug, submissionId, file }: SaveSubmissionImageInput) {
-    return saveFile(file, ["submissions", activitySlug, submissionId]);
+  saveSubmissionImage({ activitySlug, submissionId, file, validatedImage }: SaveSubmissionImageInput) {
+    return saveImageFile({
+      activitySlug,
+      submissionId,
+      file,
+      validatedImage,
+      directoryParts: ["submissions", activitySlug, submissionId],
+    });
   },
-  savePaymentProof({ activitySlug, ownerId, file }: SavePaymentProofInput) {
-    return saveFile(file, ["payment-proofs", activitySlug, ownerId]);
+  async savePaymentProof({ activitySlug, ownerId, file }: SavePaymentProofInput) {
+    if (file.size === 0) {
+      throw new Error("Payment proof files cannot be empty.");
+    }
+
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const detectedType = await fileTypeFromBuffer(bytes);
+
+    return saveBytesFile({
+      bytes,
+      directoryParts: ["payment-proofs", activitySlug, ownerId],
+      extension: detectedType?.ext ?? "bin",
+      mimeType: detectedType?.mime ?? "application/octet-stream",
+      originalName: file.name || "upload",
+    });
   },
 };
+
+export async function deleteLocalStoredFile(file: StoredFile): Promise<void> {
+  if (file.provider !== "local") {
+    return;
+  }
+
+  const absolutePath = resolveLocalUploadPath(file.fileId.split("/"));
+
+  if (!absolutePath) {
+    return;
+  }
+
+  await unlink(absolutePath).catch((error: unknown) => {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT") {
+      return;
+    }
+
+    throw error;
+  });
+}

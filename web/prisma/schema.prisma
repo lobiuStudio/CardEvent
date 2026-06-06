@@ -133,6 +133,7 @@ model Submission {
   id                String    @id @default(cuid())
   activityId        String
   participantId     String
+  participantSubmissionNumber Int?
   groupId           String?
   cardName          String
   gameOrSeries      String?
@@ -158,6 +159,7 @@ model Submission {
 
   @@unique([activityId, id])
   @@unique([activityId, participantId, id])
+  @@unique([activityId, participantId, participantSubmissionNumber])
 }
 
 model SubmissionImage {

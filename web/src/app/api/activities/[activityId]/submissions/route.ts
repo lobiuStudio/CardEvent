@@ -1,14 +1,17 @@
+import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth/rbac";
 import { getCrossSiteRequestResponse } from "@/lib/auth/request-security";
 import {
-  addSubmissionImage,
   countParticipantSubmissions,
-  createSubmissionRecord,
+  createSubmissionWithImages,
+  SubmissionLimitReachedError,
+  SubmissionSlotConflictError,
 } from "@/lib/db/submission-repository";
 import { prisma } from "@/lib/db/prisma";
-import { localFileStorage } from "@/lib/files/local-file-storage";
-import { submissionInputSchema, validateImageFile } from "@/lib/validation/submission";
+import { deleteLocalStoredFile, localFileStorage } from "@/lib/files/local-file-storage";
+import type { StoredFile } from "@/lib/files/file-storage";
+import { readValidatedImageFile, submissionInputSchema } from "@/lib/validation/submission";
 
 export const runtime = "nodejs";
 
@@ -51,6 +54,15 @@ function isUploadedFile(value: FormDataEntryValue): value is File {
 
 function getFirstIssueMessage(error: { issues: { message: string }[] }): string {
   return error.issues[0]?.message ?? "Enter valid submission details.";
+}
+
+async function deleteStagedFiles(files: StoredFile[]): Promise<void> {
+  const results = await Promise.allSettled(files.map((file) => deleteLocalStoredFile(file)));
+  const rejectedResult = results.find((result): result is PromiseRejectedResult => result.status === "rejected");
+
+  if (rejectedResult) {
+    console.error("Failed to clean up staged submission images", rejectedResult.reason);
+  }
 }
 
 export async function POST(request: Request, { params }: RouteContext): Promise<NextResponse> {
@@ -137,9 +149,11 @@ export async function POST(request: Request, { params }: RouteContext): Promise<
     );
   }
 
+  const validatedImages = [];
+
   for (const file of imageFiles) {
     try {
-      validateImageFile(file);
+      validatedImages.push(await readValidatedImageFile(file));
     } catch (error) {
       return errorResponse(
         request,
@@ -150,40 +164,60 @@ export async function POST(request: Request, { params }: RouteContext): Promise<
     }
   }
 
-  const submission = await createSubmissionRecord({
-    activityId: activity.id,
-    participantId: user.id,
-    groupId: parsed.data.groupId,
-    cardName: parsed.data.cardName,
-    gameOrSeries: parsed.data.gameOrSeries,
-    characterOrType: parsed.data.characterOrType,
-    description: parsed.data.description,
-    authorDisplayName: parsed.data.authorDisplayName,
-    reviewStatus: activity.reviewRequired ? "pending" : "not_required",
-    paymentStatus: activity.paymentRequired ? "pending" : "not_required",
-  });
+  const submissionId = randomUUID();
+  const stagedFiles: StoredFile[] = [];
 
   try {
-    for (const file of imageFiles) {
+    for (const [index, file] of imageFiles.entries()) {
       const storedFile = await localFileStorage.saveSubmissionImage({
         activitySlug: activity.slug,
-        submissionId: submission.id,
+        submissionId,
         file,
+        validatedImage: validatedImages[index],
       });
 
-      await addSubmissionImage({
-        submissionId: submission.id,
-        file: storedFile,
-      });
+      stagedFiles.push(storedFile);
     }
   } catch (error) {
     console.error("Failed to save submission images", error);
-    return errorResponse(
-      request,
-      "Submission was created, but image upload failed. Contact support before submitting again.",
-      500,
-      activity.slug,
-    );
+    await deleteStagedFiles(stagedFiles);
+    return errorResponse(request, "Image upload failed. No submission was created.", 500, activity.slug);
+  }
+
+  try {
+    await createSubmissionWithImages({
+      id: submissionId,
+      activityId: activity.id,
+      participantId: user.id,
+      groupId: parsed.data.groupId,
+      cardName: parsed.data.cardName,
+      gameOrSeries: parsed.data.gameOrSeries,
+      characterOrType: parsed.data.characterOrType,
+      description: parsed.data.description,
+      authorDisplayName: parsed.data.authorDisplayName,
+      reviewStatus: activity.reviewRequired ? "pending" : "not_required",
+      paymentStatus: activity.paymentRequired ? "pending" : "not_required",
+      perParticipantSubmissionLimit: activity.perParticipantSubmissionLimit,
+      images: stagedFiles,
+    });
+  } catch (error) {
+    await deleteStagedFiles(stagedFiles);
+
+    if (error instanceof SubmissionLimitReachedError) {
+      return errorResponse(request, "You have reached the submission limit for this activity.", 409, activity.slug);
+    }
+
+    if (error instanceof SubmissionSlotConflictError) {
+      return errorResponse(
+        request,
+        "Another submission was saved at the same time. Please try again.",
+        409,
+        activity.slug,
+      );
+    }
+
+    console.error("Failed to create submission record", error);
+    return errorResponse(request, "Submission could not be saved. No submission was created.", 500, activity.slug);
   }
 
   return successResponse(request);
