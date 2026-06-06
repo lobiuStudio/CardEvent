@@ -15,6 +15,12 @@ export function getEmailService(): EmailService {
   return process.env.EMAIL_PROVIDER === "smtp" ? smtpEmailService : consoleEmailService;
 }
 
-export async function sendEmail(message: EmailMessage): Promise<void> {
-  await getEmailService().send(message);
+export async function sendEmail(message: EmailMessage, service: EmailService = getEmailService()): Promise<boolean> {
+  try {
+    await service.send(message);
+    return true;
+  } catch (error) {
+    console.error("Failed to send email", error);
+    return false;
+  }
 }
