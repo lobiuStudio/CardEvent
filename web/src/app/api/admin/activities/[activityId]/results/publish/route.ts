@@ -3,7 +3,10 @@ import { hasRole } from "@/lib/auth/rbac";
 import { createSameOriginUrl } from "@/lib/auth/redirect";
 import { getCrossSiteRequestResponse } from "@/lib/auth/request-security";
 import { readSessionUser } from "@/lib/auth/session";
+import { prisma } from "@/lib/db/prisma";
 import { publishResults, ResultsNotPublishableError } from "@/lib/db/result-repository";
+import { sendEmail } from "@/lib/email/email-service";
+import { resultsAvailableEmail } from "@/lib/email/messages";
 
 export const runtime = "nodejs";
 
@@ -57,6 +60,50 @@ export async function POST(request: Request, { params }: RouteContext): Promise<
     }
 
     throw error;
+  }
+
+  const activity = await prisma.activity.findUnique({
+    where: {
+      id: activityId,
+    },
+    select: {
+      title: true,
+      submissions: {
+        where: {
+          resultSnapshot: {
+            is: {
+              publishedAt: {
+                not: null,
+              },
+            },
+          },
+        },
+        select: {
+          participant: {
+            select: {
+              email: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (activity) {
+    const resultUrl = createSameOriginUrl(request, "/account/results").toString();
+    const participantEmails = [...new Set(activity.submissions.map((submission) => submission.participant.email))];
+
+    await Promise.all(
+      participantEmails.map((email) =>
+        sendEmail(
+          resultsAvailableEmail({
+            to: email,
+            activityTitle: activity.title,
+            resultUrl,
+          }),
+        ),
+      ),
+    );
   }
 
   if (wantsJson(request)) {

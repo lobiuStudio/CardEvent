@@ -6,6 +6,8 @@ import { getCrossSiteRequestResponse } from "@/lib/auth/request-security";
 import { readSessionUser } from "@/lib/auth/session";
 import { createJudgeInvitation } from "@/lib/db/judge-repository";
 import { prisma } from "@/lib/db/prisma";
+import { sendEmail } from "@/lib/email/email-service";
+import { judgeInvitationEmail } from "@/lib/email/messages";
 
 export const runtime = "nodejs";
 
@@ -81,6 +83,7 @@ export async function POST(request: Request, { params }: RouteContext): Promise<
     },
     select: {
       id: true,
+      title: true,
     },
   });
 
@@ -99,6 +102,17 @@ export async function POST(request: Request, { params }: RouteContext): Promise<
     email: parsed.data.email || undefined,
     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
   });
+  const judgeEmail = parsed.data.email?.trim().toLowerCase();
+
+  if (judgeEmail) {
+    await sendEmail(
+      judgeInvitationEmail({
+        to: judgeEmail,
+        activityTitle: activity.title,
+        inviteUrl: createSameOriginUrl(request, `/judge/invite/${invitation.rawToken}`).toString(),
+      }),
+    );
+  }
 
   return successResponse(request, activityId, invitation.rawToken);
 }

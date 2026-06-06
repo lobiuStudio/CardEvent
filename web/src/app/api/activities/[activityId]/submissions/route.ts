@@ -10,6 +10,8 @@ import {
   SubmissionSlotConflictError,
 } from "@/lib/db/submission-repository";
 import { prisma } from "@/lib/db/prisma";
+import { sendEmail } from "@/lib/email/email-service";
+import { submissionReceivedEmail } from "@/lib/email/messages";
 import { deleteLocalStoredFile, localFileStorage } from "@/lib/files/local-file-storage";
 import type { StoredFile } from "@/lib/files/file-storage";
 import { readValidatedImageFile, submissionInputSchema } from "@/lib/validation/submission";
@@ -220,6 +222,14 @@ export async function POST(request: Request, { params }: RouteContext): Promise<
     console.error("Failed to create submission record", error);
     return errorResponse(request, "Submission could not be saved. No submission was created.", 500, activity.slug);
   }
+
+  await sendEmail(
+    submissionReceivedEmail({
+      to: user.email,
+      cardName: parsed.data.cardName,
+      activityTitle: activity.title,
+    }),
+  );
 
   return successResponse(request);
 }

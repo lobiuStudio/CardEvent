@@ -3,7 +3,10 @@ import { hasRole } from "@/lib/auth/rbac";
 import { createSameOriginUrl } from "@/lib/auth/redirect";
 import { getCrossSiteRequestResponse } from "@/lib/auth/request-security";
 import { readSessionUser } from "@/lib/auth/session";
+import { prisma } from "@/lib/db/prisma";
 import { approveSubmission, rejectSubmission, ReviewSubmissionNotFoundError } from "@/lib/db/review-repository";
+import { sendEmail } from "@/lib/email/email-service";
+import { submissionRejectedEmail } from "@/lib/email/messages";
 
 export const runtime = "nodejs";
 
@@ -96,6 +99,33 @@ export async function POST(request: Request, { params }: RouteContext): Promise<
       action === "approve"
         ? await approveSubmission(submissionId, currentUser.id)
         : await rejectSubmission(submissionId, currentUser.id, reason);
+
+    if (action === "reject") {
+      const rejectedSubmission = await prisma.submission.findUnique({
+        where: {
+          id: submission.id,
+        },
+        select: {
+          cardName: true,
+          rejectionReason: true,
+          participant: {
+            select: {
+              email: true,
+            },
+          },
+        },
+      });
+
+      if (rejectedSubmission) {
+        await sendEmail(
+          submissionRejectedEmail({
+            to: rejectedSubmission.participant.email,
+            cardName: rejectedSubmission.cardName,
+            reason: rejectedSubmission.rejectionReason ?? "No reason was provided.",
+          }),
+        );
+      }
+    }
 
     return successResponse(request, submission);
   } catch (error) {

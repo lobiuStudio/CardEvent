@@ -7,6 +7,8 @@ import { createSameOriginUrl, getSafeReturnPath } from "@/lib/auth/redirect";
 import { getCrossSiteRequestResponse } from "@/lib/auth/request-security";
 import { setSessionCookie } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
+import { sendEmail } from "@/lib/email/email-service";
+import { registrationVerificationEmail } from "@/lib/email/messages";
 
 export const runtime = "nodejs";
 
@@ -114,9 +116,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     });
 
     const verificationUrl = createSameOriginUrl(request, `/account/verify-email/${rawToken}`).toString();
-    if (process.env.NODE_ENV !== "production") {
-      console.info(`Email verification URL for ${email}: ${verificationUrl}`);
-    }
+    await sendEmail(registrationVerificationEmail({ to: email, verifyUrl: verificationUrl }));
 
     await setSessionCookie(user.id);
 
