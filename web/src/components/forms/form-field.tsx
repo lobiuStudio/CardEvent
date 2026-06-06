@@ -25,11 +25,11 @@ export function FormField({
   const invalid = Boolean(error);
 
   return (
-    <div className="grid gap-1.5 text-sm font-medium text-zinc-900">
+    <div className="grid gap-1.5 text-sm font-bold text-[var(--ink)]">
       <label htmlFor={id}>{label}</label>
       {children({ id, describedBy, invalid })}
       {hint ? (
-        <span id={hintId} className="text-xs font-normal text-zinc-500">
+        <span id={hintId} className="text-xs font-medium leading-5 text-[var(--ink-muted)]">
           {hint}
         </span>
       ) : null}

@@ -3,8 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { marked, type Token, type Tokens } from "marked";
 import { BottomActionBar } from "@/components/mobile/bottom-action-bar";
+import { BilingualText } from "@/components/ui/bilingual-text";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { getActivityBySlug } from "@/lib/db/activity-repository";
+import { bilingualLabel, formatBilingualDate, type BilingualCopy } from "@/lib/i18n/bilingual";
 
 export const runtime = "nodejs";
 
@@ -17,43 +19,36 @@ type ActivityPageProps = {
   }>;
 };
 
-function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "full",
-    timeStyle: "short",
-  }).format(date);
+function formatMode(mode: string): BilingualCopy {
+  return mode === "competition" ? { en: "Competition", zh: "比賽" } : { en: "Grading", zh: "評審" };
 }
 
-function formatMode(mode: string): string {
-  return mode === "competition" ? "Competition" : "Grading";
-}
-
-function formatChargingMode(mode: string): string {
-  return mode === "per_participant" ? "Per participant" : "Per card";
+function formatChargingMode(mode: string): BilingualCopy {
+  return mode === "per_participant" ? { en: "Per participant", zh: "按參加者" } : { en: "Per card", zh: "按卡牌" };
 }
 
 function getActivityStatus(activity: Activity, now: Date): { label: string; tone: StatusTone } {
   if (activity.resultsPublishedAt) {
-    return { label: "Results published", tone: "success" };
+    return { label: bilingualLabel({ en: "Results published", zh: "結果已公布" }), tone: "success" };
   }
 
   if (now < activity.submissionStartAt) {
-    return { label: "Opening soon", tone: "neutral" };
+    return { label: bilingualLabel({ en: "Opening soon", zh: "即將開始" }), tone: "neutral" };
   }
 
   if (now <= activity.submissionDeadlineAt) {
-    return { label: "Open", tone: "success" };
+    return { label: bilingualLabel({ en: "Open", zh: "接受投稿" }), tone: "success" };
   }
 
   if (now <= activity.judgingDeadlineAt) {
-    return { label: "Judging", tone: "warning" };
+    return { label: bilingualLabel({ en: "Judging", zh: "評審中" }), tone: "warning" };
   }
 
   if (now <= activity.expectedResultAnnouncementAt) {
-    return { label: "Results pending", tone: "warning" };
+    return { label: bilingualLabel({ en: "Results pending", zh: "等待結果" }), tone: "warning" };
   }
 
-  return { label: "Closed", tone: "neutral" };
+  return { label: bilingualLabel({ en: "Closed", zh: "已截止" }), tone: "neutral" };
 }
 
 function isSubmissionOpen(activity: Activity, now: Date): boolean {
@@ -279,6 +274,14 @@ function MarkdownRules({ markdown }: { markdown: string }) {
   return <div className="grid gap-4">{renderBlockTokens(marked.lexer(markdown), "rules")}</div>;
 }
 
+function SectionTitle({ en, id, zh }: BilingualCopy & { id?: string }) {
+  return (
+    <h2 className="text-2xl font-black tracking-normal text-[var(--ink)]" id={id}>
+      <BilingualText en={en} zh={zh} />
+    </h2>
+  );
+}
+
 export default async function ActivityDetailPage({ params }: ActivityPageProps) {
   const { slug } = await params;
   const activity = await getActivityBySlug(slug);
@@ -290,84 +293,117 @@ export default async function ActivityDetailPage({ params }: ActivityPageProps) 
   const now = new Date();
   const status = getActivityStatus(activity, now);
   const submissionsOpen = isSubmissionOpen(activity, now);
+  const mode = formatMode(activity.mode);
+  const chargingMode = formatChargingMode(activity.paymentChargingMode);
 
   return (
     <>
-      <main className="min-h-dvh flex-1 bg-zinc-50 px-4 py-8 pb-28">
-        <div className="mx-auto grid w-full max-w-4xl gap-8">
-          <header className="grid gap-5">
-            <Link className="text-sm font-medium text-zinc-600 transition hover:text-zinc-950" href="/activities">
-              Back to activities
-            </Link>
-            <div className="grid gap-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <StatusBadge label={status.label} tone={status.tone} />
-                <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700">
-                  {formatMode(activity.mode)}
-                </span>
+      <main className="cardevent-shell min-h-dvh flex-1 px-4 py-8 pb-28 text-[var(--ink)] sm:px-6">
+        <div className="mx-auto grid w-full max-w-5xl gap-8">
+          <header className="grid gap-6 py-4 lg:grid-cols-[1fr_18rem] lg:items-end">
+            <div className="grid gap-5">
+              <Link className="text-sm font-bold text-[var(--ink-muted)] transition hover:text-[var(--ink)]" href="/activities">
+                <BilingualText en="Back to activities" zh="返回活動列表" />
+              </Link>
+              <div className="grid gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusBadge label={status.label} tone={status.tone} />
+                  <span className="rounded-full border-2 border-[var(--line)] bg-white px-2.5 py-1 text-xs font-black text-[var(--ink)]">
+                    <BilingualText en={mode.en} zh={mode.zh} />
+                  </span>
+                </div>
+                <h1 className="text-4xl font-black leading-tight tracking-normal text-[var(--ink)] md:text-6xl">
+                  {activity.title}
+                </h1>
+                <p className="max-w-3xl text-base leading-7 text-[var(--ink-muted)]">{activity.description}</p>
               </div>
-              <h1 className="text-3xl font-semibold leading-tight tracking-normal text-zinc-950 md:text-4xl">
-                {activity.title}
-              </h1>
-              <p className="max-w-3xl text-base leading-7 text-zinc-600">{activity.description}</p>
             </div>
+
+            <aside className="paper-surface rounded-lg border-2 border-[var(--line)] p-4 ink-shadow-sm">
+              <p className="text-xs font-black uppercase text-[var(--ink-muted)]">
+                <BilingualText en="Submission window" zh="投稿時段" />
+              </p>
+              <p className="mt-3 text-2xl font-black leading-tight text-[var(--ink)]">
+                {submissionsOpen ? (
+                  <BilingualText en="Now open" zh="現正開放" />
+                ) : (
+                  <BilingualText en="Not open" zh="未開放" />
+                )}
+              </p>
+              <p className="mt-3 text-sm leading-6 text-[var(--ink-muted)]">
+                {formatBilingualDate(activity.submissionDeadlineAt, "full")}
+              </p>
+            </aside>
           </header>
 
-          <section className="rounded-md border border-zinc-200 bg-white p-5 shadow-sm" aria-labelledby="deadlines">
-            <h2 className="text-xl font-semibold text-zinc-950" id="deadlines">
-              Deadlines
-            </h2>
+          <section className="border-t-2 border-[var(--line)] py-7" aria-labelledby="deadlines">
+            <SectionTitle en="Deadlines" id="deadlines" zh="重要日期" />
             <dl className="mt-5 grid gap-4 md:grid-cols-2">
-              <div>
-                <dt className="text-sm font-medium text-zinc-900">Submissions open</dt>
-                <dd className="mt-1 text-sm leading-6 text-zinc-600">{formatDate(activity.submissionStartAt)}</dd>
+              <div className="paper-surface rounded-lg border-2 border-[var(--line)] p-4">
+                <dt className="text-sm font-black text-[var(--ink)]">
+                  <BilingualText en="Submissions open" zh="投稿開始" />
+                </dt>
+                <dd className="mt-1 text-sm leading-6 text-[var(--ink-muted)]">
+                  {formatBilingualDate(activity.submissionStartAt, "full")}
+                </dd>
               </div>
-              <div>
-                <dt className="text-sm font-medium text-zinc-900">Submission deadline</dt>
-                <dd className="mt-1 text-sm leading-6 text-zinc-600">{formatDate(activity.submissionDeadlineAt)}</dd>
+              <div className="paper-surface rounded-lg border-2 border-[var(--line)] p-4">
+                <dt className="text-sm font-black text-[var(--ink)]">
+                  <BilingualText en="Submission deadline" zh="投稿截止" />
+                </dt>
+                <dd className="mt-1 text-sm leading-6 text-[var(--ink-muted)]">
+                  {formatBilingualDate(activity.submissionDeadlineAt, "full")}
+                </dd>
               </div>
-              <div>
-                <dt className="text-sm font-medium text-zinc-900">Judging deadline</dt>
-                <dd className="mt-1 text-sm leading-6 text-zinc-600">{formatDate(activity.judgingDeadlineAt)}</dd>
+              <div className="paper-surface rounded-lg border-2 border-[var(--line)] p-4">
+                <dt className="text-sm font-black text-[var(--ink)]">
+                  <BilingualText en="Judging deadline" zh="評審截止" />
+                </dt>
+                <dd className="mt-1 text-sm leading-6 text-[var(--ink-muted)]">
+                  {formatBilingualDate(activity.judgingDeadlineAt, "full")}
+                </dd>
               </div>
-              <div>
-                <dt className="text-sm font-medium text-zinc-900">Expected results</dt>
-                <dd className="mt-1 text-sm leading-6 text-zinc-600">
-                  {formatDate(activity.expectedResultAnnouncementAt)}
+              <div className="paper-surface rounded-lg border-2 border-[var(--line)] p-4">
+                <dt className="text-sm font-black text-[var(--ink)]">
+                  <BilingualText en="Expected results" zh="預計公布結果" />
+                </dt>
+                <dd className="mt-1 text-sm leading-6 text-[var(--ink-muted)]">
+                  {formatBilingualDate(activity.expectedResultAnnouncementAt, "full")}
                 </dd>
               </div>
             </dl>
           </section>
 
-          <section className="rounded-md border border-zinc-200 bg-white p-5 shadow-sm" aria-labelledby="rules">
-            <h2 className="text-xl font-semibold text-zinc-950" id="rules">
-              Rules
-            </h2>
-            <div className="mt-5">
+          <section className="border-t-2 border-[var(--line)] py-7" aria-labelledby="rules">
+            <SectionTitle en="Rules" id="rules" zh="活動規則" />
+            <div className="paper-surface mt-5 rounded-lg border-2 border-[var(--line)] p-5">
               <MarkdownRules markdown={activity.rulesMarkdown} />
             </div>
           </section>
 
-          <section className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-md border border-zinc-200 bg-white p-5 shadow-sm">
-              <h2 className="text-xl font-semibold text-zinc-950">Groups</h2>
+          <section className="grid gap-5 border-t-2 border-[var(--line)] py-7 md:grid-cols-2">
+            <div>
+              <SectionTitle en="Groups" zh="組別" />
               <ul className="mt-4 grid gap-2">
                 {activity.groups.map((group) => (
-                  <li className="rounded-md bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-800" key={group.id}>
+                  <li
+                    className="rounded-md border-2 border-[var(--line)] bg-[var(--mint)] px-3 py-2 text-sm font-black text-[var(--ink)]"
+                    key={group.id}
+                  >
                     {group.name}
                   </li>
                 ))}
               </ul>
             </div>
 
-            <div className="rounded-md border border-zinc-200 bg-white p-5 shadow-sm">
-              <h2 className="text-xl font-semibold text-zinc-950">Criteria</h2>
+            <div>
+              <SectionTitle en="Criteria" zh="評分準則" />
               <ul className="mt-4 grid gap-3">
                 {activity.criteria.map((criterion) => (
-                  <li className="grid gap-1 rounded-md bg-zinc-100 px-3 py-2" key={criterion.id}>
-                    <span className="text-sm font-medium text-zinc-900">{criterion.name}</span>
+                  <li className="paper-surface grid gap-1 rounded-lg border-2 border-[var(--line)] px-3 py-2" key={criterion.id}>
+                    <span className="text-sm font-black text-[var(--ink)]">{criterion.name}</span>
                     {criterion.description ? (
-                      <span className="text-sm leading-6 text-zinc-600">{criterion.description}</span>
+                      <span className="text-sm leading-6 text-[var(--ink-muted)]">{criterion.description}</span>
                     ) : null}
                   </li>
                 ))}
@@ -375,52 +411,62 @@ export default async function ActivityDetailPage({ params }: ActivityPageProps) 
             </div>
           </section>
 
-          <section className="rounded-md border border-zinc-200 bg-white p-5 shadow-sm" aria-labelledby="settings">
-            <h2 className="text-xl font-semibold text-zinc-950" id="settings">
-              Submission Settings
-            </h2>
+          <section className="border-t-2 border-[var(--line)] py-7" aria-labelledby="settings">
+            <SectionTitle en="Submission settings" id="settings" zh="投稿設定" />
             <dl className="mt-5 grid gap-4 md:grid-cols-2">
               <div>
-                <dt className="text-sm font-medium text-zinc-900">Participant limit</dt>
-                <dd className="mt-1 text-sm leading-6 text-zinc-600">
-                  {activity.perParticipantSubmissionLimit} submissions
+                <dt className="text-sm font-black text-[var(--ink)]">
+                  <BilingualText en="Participant limit" zh="每人投稿上限" />
+                </dt>
+                <dd className="mt-1 text-sm leading-6 text-[var(--ink-muted)]">
+                  {activity.perParticipantSubmissionLimit} submissions / {activity.perParticipantSubmissionLimit} 份投稿
                 </dd>
               </div>
               <div>
-                <dt className="text-sm font-medium text-zinc-900">Images per submission</dt>
-                <dd className="mt-1 text-sm leading-6 text-zinc-600">{activity.maxImagesPerSubmission} images</dd>
-              </div>
-              <div>
-                <dt className="text-sm font-medium text-zinc-900">Review</dt>
-                <dd className="mt-1 text-sm leading-6 text-zinc-600">
-                  {activity.reviewRequired ? "Required" : "Not required"}
+                <dt className="text-sm font-black text-[var(--ink)]">
+                  <BilingualText en="Images per submission" zh="每份投稿圖片數量" />
+                </dt>
+                <dd className="mt-1 text-sm leading-6 text-[var(--ink-muted)]">
+                  {activity.maxImagesPerSubmission} images / {activity.maxImagesPerSubmission} 張圖片
                 </dd>
               </div>
               <div>
-                <dt className="text-sm font-medium text-zinc-900">Judging</dt>
-                <dd className="mt-1 text-sm leading-6 text-zinc-600">
-                  {activity.anonymousJudging ? "Anonymous" : "Named"}
+                <dt className="text-sm font-black text-[var(--ink)]">
+                  <BilingualText en="Review" zh="審核" />
+                </dt>
+                <dd className="mt-1 text-sm leading-6 text-[var(--ink-muted)]">
+                  {activity.reviewRequired ? bilingualLabel({ en: "Required", zh: "需要審核" }) : bilingualLabel({ en: "Not required", zh: "不需要審核" })}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-sm font-black text-[var(--ink)]">
+                  <BilingualText en="Judging" zh="評審身份" />
+                </dt>
+                <dd className="mt-1 text-sm leading-6 text-[var(--ink-muted)]">
+                  {activity.anonymousJudging ? bilingualLabel({ en: "Anonymous", zh: "匿名評審" }) : bilingualLabel({ en: "Named", zh: "具名評審" })}
                 </dd>
               </div>
             </dl>
           </section>
 
           {activity.paymentRequired ? (
-            <section className="rounded-md border border-zinc-200 bg-white p-5 shadow-sm" aria-labelledby="payment">
-              <h2 className="text-xl font-semibold text-zinc-950" id="payment">
-                Payment
-              </h2>
+            <section className="border-t-2 border-[var(--line)] py-7" aria-labelledby="payment">
+              <SectionTitle en="Payment" id="payment" zh="付款" />
               <dl className="mt-5 grid gap-4">
                 <div>
-                  <dt className="text-sm font-medium text-zinc-900">Charging mode</dt>
-                  <dd className="mt-1 text-sm leading-6 text-zinc-600">
-                    {formatChargingMode(activity.paymentChargingMode)}
+                  <dt className="text-sm font-black text-[var(--ink)]">
+                    <BilingualText en="Charging mode" zh="收費模式" />
+                  </dt>
+                  <dd className="mt-1 text-sm leading-6 text-[var(--ink-muted)]">
+                    <BilingualText en={chargingMode.en} zh={chargingMode.zh} />
                   </dd>
                 </div>
                 {activity.paymentInstructions ? (
                   <div>
-                    <dt className="text-sm font-medium text-zinc-900">Instructions</dt>
-                    <dd className="mt-1 whitespace-pre-wrap text-sm leading-6 text-zinc-600">
+                    <dt className="text-sm font-black text-[var(--ink)]">
+                      <BilingualText en="Instructions" zh="付款指示" />
+                    </dt>
+                    <dd className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[var(--ink-muted)]">
                       {activity.paymentInstructions}
                     </dd>
                   </div>
@@ -434,21 +480,21 @@ export default async function ActivityDetailPage({ params }: ActivityPageProps) 
       <BottomActionBar>
         {submissionsOpen ? (
           <Link
-            className="flex min-h-11 flex-1 items-center justify-center rounded-md bg-zinc-950 px-4 text-sm font-medium text-white transition hover:bg-zinc-800"
+            className="focus-ink flex min-h-11 flex-1 items-center justify-center rounded-md border-2 border-[var(--line)] bg-[var(--line)] px-4 text-sm font-bold text-white transition hover:bg-zinc-800"
             href={`/activities/${activity.slug}/submit`}
           >
-            Submit card
+            <BilingualText en="Submit card" zh="提交卡牌" />
           </Link>
         ) : (
-          <span className="flex min-h-11 flex-1 items-center justify-center rounded-md bg-zinc-200 px-4 text-sm font-medium text-zinc-600">
-            Submissions unavailable
+          <span className="flex min-h-11 flex-1 items-center justify-center rounded-md border-2 border-[var(--line)] bg-zinc-200 px-4 text-sm font-bold text-zinc-600">
+            <BilingualText en="Submissions unavailable" zh="暫停投稿" />
           </span>
         )}
         <Link
-          className="flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-medium text-zinc-950 ring-1 ring-zinc-200 transition hover:bg-zinc-50"
+          className="focus-ink flex min-h-11 items-center justify-center rounded-md border-2 border-[var(--line)] bg-white px-4 text-sm font-bold text-[var(--ink)] transition hover:bg-[var(--sun)]"
           href="/activities"
         >
-          Activities
+          <BilingualText en="Activities" zh="活動" />
         </Link>
       </BottomActionBar>
     </>

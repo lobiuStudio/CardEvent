@@ -20,6 +20,7 @@ export type SavePaymentProofInput = {
   activitySlug: string;
   ownerId: string;
   file: File;
+  validatedImage?: ValidatedImageFile;
 };
 
 export type FileStorage = {

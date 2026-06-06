@@ -29,6 +29,27 @@ async function listRecentActivities() {
   });
 }
 
+async function getPendingAdminQueueCounts() {
+  const [submissions, payments] = await Promise.all([
+    prisma.submission.count({
+      where: {
+        deletedAt: null,
+        reviewStatus: "pending",
+        activity: {
+          reviewRequired: true,
+        },
+      },
+    }),
+    prisma.paymentProof.count({
+      where: {
+        status: "pending",
+      },
+    }),
+  ]);
+
+  return { submissions, payments };
+}
+
 type AdminActivity = Awaited<ReturnType<typeof listRecentActivities>>[number];
 
 function readParam(value: string | string[] | undefined): string {
@@ -75,7 +96,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
 
   const params = await searchParams;
   const created = readParam(params.created);
-  const activities = await listRecentActivities();
+  const [activities, queueCounts] = await Promise.all([listRecentActivities(), getPendingAdminQueueCounts()]);
   const now = new Date();
 
   return (
@@ -99,6 +120,18 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
               href="/admin/users"
             >
               Users
+            </Link>
+            <Link
+              className="inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-medium text-zinc-950 ring-1 ring-zinc-200 transition hover:bg-zinc-50"
+              href="/admin/submissions"
+            >
+              Reviews ({queueCounts.submissions})
+            </Link>
+            <Link
+              className="inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-medium text-zinc-950 ring-1 ring-zinc-200 transition hover:bg-zinc-50"
+              href="/admin/payments"
+            >
+              Payments ({queueCounts.payments})
             </Link>
           </div>
         </header>

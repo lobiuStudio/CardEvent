@@ -6,11 +6,17 @@ export function StatusBadge({
   tone?: "neutral" | "success" | "warning" | "danger";
 }) {
   const tones = {
-    neutral: "bg-zinc-100 text-zinc-700",
-    success: "bg-emerald-100 text-emerald-800",
-    warning: "bg-amber-100 text-amber-800",
-    danger: "bg-red-100 text-red-800",
+    neutral: "bg-white text-[var(--ink)]",
+    success: "bg-[var(--mint)] text-[var(--ink)]",
+    warning: "bg-[var(--sun)] text-[var(--ink)]",
+    danger: "bg-[var(--coral)] text-[var(--ink)]",
   };
 
-  return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${tones[tone]}`}>{label}</span>;
+  return (
+    <span
+      className={`inline-flex rounded-full border-2 border-[var(--line)] px-2.5 py-1 text-xs font-black ${tones[tone]}`}
+    >
+      {label}
+    </span>
+  );
 }

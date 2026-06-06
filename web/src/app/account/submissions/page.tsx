@@ -2,29 +2,32 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth/rbac";
 import { listParticipantSubmissions } from "@/lib/db/submission-repository";
+import { BilingualText } from "@/components/ui/bilingual-text";
+import { PaymentProofUploadForm } from "@/components/forms/payment-proof-upload-form";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { bilingualLabel, formatBilingualDate } from "@/lib/i18n/bilingual";
 
 export const runtime = "nodejs";
 
 type Submission = Awaited<ReturnType<typeof listParticipantSubmissions>>[number];
 type StatusTone = "neutral" | "success" | "warning" | "danger";
 
-function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
-}
-
 function formatStatus(value: string): string {
-  return value
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+  const labels: Record<string, string> = {
+    approved: bilingualLabel({ en: "Approved", zh: "已通過" }),
+    confirmed: bilingualLabel({ en: "Confirmed", zh: "已確認" }),
+    failed: bilingualLabel({ en: "Failed", zh: "失敗" }),
+    not_required: bilingualLabel({ en: "Not required", zh: "不需要" }),
+    paid: bilingualLabel({ en: "Paid", zh: "已付款" }),
+    pending: bilingualLabel({ en: "Pending", zh: "待處理" }),
+    rejected: bilingualLabel({ en: "Rejected", zh: "已拒絕" }),
+  };
+
+  return labels[value] ?? value;
 }
 
 function getStatusTone(value: string): StatusTone {
-  if (value === "not_required" || value === "approved" || value === "paid") {
+  if (value === "not_required" || value === "approved" || value === "confirmed" || value === "paid") {
     return "success";
   }
 
@@ -39,66 +42,100 @@ function getStatusTone(value: string): StatusTone {
   return "neutral";
 }
 
+function PaymentProofSection({ submission }: { submission: Submission }) {
+  if (!submission.activity.paymentRequired || submission.paymentStatus !== "pending") {
+    return null;
+  }
+
+  if (submission.activity.paymentChargingMode === "per_card") {
+    return (
+      <PaymentProofUploadForm
+        activityId={submission.activityId}
+        chargingMode="per_card"
+        submissionId={submission.id}
+      />
+    );
+  }
+
+  if (submission.activity.paymentChargingMode === "per_participant") {
+    return <PaymentProofUploadForm activityId={submission.activityId} chargingMode="per_participant" />;
+  }
+
+  return null;
+}
+
 function SubmissionCard({ submission }: { submission: Submission }) {
   const coverImage = submission.images[0];
 
   return (
-    <article className="grid gap-4 rounded-md border border-zinc-200 bg-white p-5 shadow-sm">
+    <article className="paper-surface grid gap-4 rounded-lg border-2 border-[var(--line)] p-5 ink-shadow-sm">
       <div className="flex items-start justify-between gap-4">
         <div className="grid gap-1">
-          <h2 className="text-xl font-semibold leading-7 tracking-normal text-zinc-950">{submission.cardName}</h2>
+          <h2 className="text-xl font-black leading-7 tracking-normal text-[var(--ink)]">{submission.cardName}</h2>
           <Link
-            className="text-sm font-medium text-zinc-600 transition hover:text-zinc-950"
+            className="text-sm font-bold text-[var(--ink-muted)] transition hover:text-[var(--ink)]"
             href={`/activities/${submission.activity.slug}`}
           >
             {submission.activity.title}
           </Link>
         </div>
-        <span className="shrink-0 rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700">
-          {submission.group?.name ?? "Ungrouped"}
+        <span className="shrink-0 rounded-full border-2 border-[var(--line)] bg-[var(--mint)] px-2.5 py-1 text-xs font-black text-[var(--ink)]">
+          {submission.group?.name ?? bilingualLabel({ en: "Ungrouped", zh: "未分組" })}
         </span>
       </div>
 
       {coverImage ? (
         <img
           alt={coverImage.originalName}
-          className="aspect-[4/3] w-full rounded-md border border-zinc-200 object-cover"
+          className="aspect-[4/3] w-full rounded-md border-2 border-[var(--line)] object-cover"
           src={coverImage.publicUrl}
         />
       ) : null}
 
-      <dl className="grid gap-3 text-sm leading-6 text-zinc-600">
+      <dl className="grid gap-3 text-sm leading-6 text-[var(--ink-muted)]">
         {submission.gameOrSeries ? (
           <div className="flex justify-between gap-4">
-            <dt className="font-medium text-zinc-900">Game or series</dt>
+            <dt className="font-black text-[var(--ink)]">
+              <BilingualText en="Game or series" zh="遊戲或系列" />
+            </dt>
             <dd className="text-right">{submission.gameOrSeries}</dd>
           </div>
         ) : null}
         {submission.characterOrType ? (
           <div className="flex justify-between gap-4">
-            <dt className="font-medium text-zinc-900">Character or type</dt>
+            <dt className="font-black text-[var(--ink)]">
+              <BilingualText en="Character or type" zh="角色或類型" />
+            </dt>
             <dd className="text-right">{submission.characterOrType}</dd>
           </div>
         ) : null}
         <div className="flex justify-between gap-4">
-          <dt className="font-medium text-zinc-900">Submitted</dt>
-          <dd className="text-right">{formatDate(submission.createdAt)}</dd>
+          <dt className="font-black text-[var(--ink)]">
+            <BilingualText en="Submitted" zh="提交時間" />
+          </dt>
+          <dd className="text-right">{formatBilingualDate(submission.createdAt)}</dd>
         </div>
         <div className="flex items-center justify-between gap-4">
-          <dt className="font-medium text-zinc-900">Review</dt>
+          <dt className="font-black text-[var(--ink)]">
+            <BilingualText en="Review" zh="審核" />
+          </dt>
           <dd>
             <StatusBadge label={formatStatus(submission.reviewStatus)} tone={getStatusTone(submission.reviewStatus)} />
           </dd>
         </div>
         <div className="flex items-center justify-between gap-4">
-          <dt className="font-medium text-zinc-900">Payment</dt>
+          <dt className="font-black text-[var(--ink)]">
+            <BilingualText en="Payment" zh="付款" />
+          </dt>
           <dd>
             <StatusBadge label={formatStatus(submission.paymentStatus)} tone={getStatusTone(submission.paymentStatus)} />
           </dd>
         </div>
       </dl>
 
-      {submission.description ? <p className="text-sm leading-6 text-zinc-600">{submission.description}</p> : null}
+      {submission.description ? <p className="text-sm leading-6 text-[var(--ink-muted)]">{submission.description}</p> : null}
+
+      <PaymentProofSection submission={submission} />
     </article>
   );
 }
@@ -108,12 +145,21 @@ export default async function AccountSubmissionsPage() {
   const submissions = await listParticipantSubmissions(user.id);
 
   return (
-    <main className="min-h-dvh flex-1 bg-zinc-50 px-4 py-8">
+    <main className="cardevent-shell min-h-dvh flex-1 px-4 py-8 text-[var(--ink)]">
       <div className="mx-auto grid w-full max-w-3xl gap-8">
         <header className="grid gap-2">
-          <p className="text-sm font-medium uppercase tracking-normal text-zinc-500">Account</p>
-          <h1 className="text-3xl font-semibold tracking-normal text-zinc-950">Your submissions</h1>
-          <p className="text-sm leading-6 text-zinc-600">Review your submitted cards, images, and activity statuses.</p>
+          <p className="w-fit rounded-full border-2 border-[var(--line)] bg-[var(--sky)] px-3 py-1 text-xs font-black uppercase text-[var(--ink)]">
+            <BilingualText en="Account" zh="帳戶" />
+          </p>
+          <h1 className="text-4xl font-black tracking-normal text-[var(--ink)]">
+            <BilingualText en="Your submissions" zh="我的投稿" />
+          </h1>
+          <p className="text-sm leading-6 text-[var(--ink-muted)]">
+            Review your submitted cards, images, and activity statuses.
+            <span className="block" lang="zh-HK">
+              查看你提交的卡牌、圖片及活動狀態。
+            </span>
+          </p>
         </header>
 
         {submissions.length ? (
@@ -123,14 +169,21 @@ export default async function AccountSubmissionsPage() {
             ))}
           </div>
         ) : (
-          <section className="rounded-md border border-zinc-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-zinc-950">No submissions yet</h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-600">Open activities are ready for card submissions.</p>
+          <section className="paper-surface rounded-lg border-2 border-[var(--line)] p-5 ink-shadow-sm">
+            <h2 className="text-lg font-black text-[var(--ink)]">
+              <BilingualText en="No submissions yet" zh="暫時未有投稿" />
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-[var(--ink-muted)]">
+              Open activities are ready for card submissions.
+              <span className="block" lang="zh-HK">
+                你可以在開放中的活動提交卡牌。
+              </span>
+            </p>
             <Link
-              className="mt-5 inline-flex min-h-11 items-center justify-center rounded-md bg-zinc-950 px-4 text-sm font-medium text-white transition hover:bg-zinc-800"
+              className="focus-ink mt-5 inline-flex min-h-12 items-center justify-center rounded-md border-2 border-[var(--line)] bg-[var(--line)] px-4 text-sm font-bold text-white transition hover:bg-zinc-800"
               href="/activities"
             >
-              Browse activities
+              <BilingualText en="Browse activities" zh="瀏覽活動" />
             </Link>
           </section>
         )}

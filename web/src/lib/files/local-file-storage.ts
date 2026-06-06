@@ -1,6 +1,5 @@
 import { mkdir, unlink, writeFile } from "fs/promises";
 import { randomUUID } from "crypto";
-import { fileTypeFromBuffer } from "file-type";
 import path from "path";
 import type { FileStorage, SavePaymentProofInput, SaveSubmissionImageInput, StoredFile } from "./file-storage";
 import { readValidatedImageFile } from "@/lib/validation/submission";
@@ -103,20 +102,13 @@ export const localFileStorage: FileStorage = {
       directoryParts: ["submissions", activitySlug, submissionId],
     });
   },
-  async savePaymentProof({ activitySlug, ownerId, file }: SavePaymentProofInput) {
-    if (file.size === 0) {
-      throw new Error("Payment proof files cannot be empty.");
-    }
-
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const detectedType = await fileTypeFromBuffer(bytes);
-
-    return saveBytesFile({
-      bytes,
+  savePaymentProof({ activitySlug, ownerId, file, validatedImage }: SavePaymentProofInput) {
+    return saveImageFile({
+      activitySlug,
+      submissionId: ownerId,
+      file,
+      validatedImage,
       directoryParts: ["payment-proofs", activitySlug, ownerId],
-      extension: detectedType?.ext ?? "bin",
-      mimeType: detectedType?.mime ?? "application/octet-stream",
-      originalName: file.name || "upload",
     });
   },
 };
