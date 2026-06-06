@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { setSessionCookie } from "@/lib/auth/session";
 import { verifyPassword } from "@/lib/auth/password";
+import { getCrossSiteRequestResponse } from "@/lib/auth/request-security";
+import { setSessionCookie } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 
 export const runtime = "nodejs";
@@ -50,6 +51,12 @@ function getLoginRedirectPath(roles: string[]): string {
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
+  const crossSiteResponse = getCrossSiteRequestResponse(request);
+
+  if (crossSiteResponse) {
+    return crossSiteResponse;
+  }
+
   const parsed = loginSchema.safeParse(await readRequestBody(request).catch(() => null));
 
   if (!parsed.success) {
@@ -73,12 +80,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const roles = user.roles.map(({ role }) => role);
 
-  await setSessionCookie({
-    id: user.id,
-    email: user.email,
-    displayName: user.displayName,
-    roles,
-  });
+  await setSessionCookie(user.id);
 
   return redirectResponse(request, getLoginRedirectPath(roles));
 }

@@ -1,8 +1,10 @@
-import { createHash, randomBytes } from "crypto";
+import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { setSessionCookie } from "@/lib/auth/session";
+import { hashEmailVerificationToken } from "@/lib/auth/email-verification";
 import { hashPassword } from "@/lib/auth/password";
+import { getCrossSiteRequestResponse } from "@/lib/auth/request-security";
+import { setSessionCookie } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 
 export const runtime = "nodejs";
@@ -12,10 +14,6 @@ const registerSchema = z.object({
   password: z.string().min(8),
   displayName: z.string().min(1).max(80),
 });
-
-function hashToken(token: string): string {
-  return createHash("sha256").update(token).digest("hex");
-}
 
 async function readRequestBody(request: Request): Promise<unknown> {
   const contentType = request.headers.get("content-type") ?? "";
@@ -48,6 +46,12 @@ function isUniqueConstraintError(error: unknown): boolean {
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
+  const crossSiteResponse = getCrossSiteRequestResponse(request);
+
+  if (crossSiteResponse) {
+    return crossSiteResponse;
+  }
+
   const parsed = registerSchema.safeParse(await readRequestBody(request).catch(() => null));
 
   if (!parsed.success) {
@@ -76,7 +80,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const passwordHash = await hashPassword(parsed.data.password);
   const rawToken = randomBytes(32).toString("base64url");
-  const tokenHash = hashToken(rawToken);
+  const tokenHash = hashEmailVerificationToken(rawToken);
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
   try {
@@ -104,21 +108,15 @@ export async function POST(request: Request): Promise<NextResponse> {
         },
       });
 
-      return tx.user.findUniqueOrThrow({
-        where: { id: createdUser.id },
-        include: { roles: true },
-      });
+      return createdUser;
     });
 
     const verificationUrl = new URL(`/account/verify-email/${rawToken}`, request.url).toString();
-    console.info(`Email verification URL for ${email}: ${verificationUrl}`);
+    if (process.env.NODE_ENV !== "production") {
+      console.info(`Email verification URL for ${email}: ${verificationUrl}`);
+    }
 
-    await setSessionCookie({
-      id: user.id,
-      email: user.email,
-      displayName: user.displayName,
-      roles: user.roles.map(({ role }) => role),
-    });
+    await setSessionCookie(user.id);
 
     return redirectResponse(request, "/activities");
   } catch (error) {

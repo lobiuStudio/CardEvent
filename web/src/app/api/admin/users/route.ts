@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { hasRole } from "@/lib/auth/rbac";
-import { readSessionUser } from "@/lib/auth/session";
 import { hashPassword } from "@/lib/auth/password";
+import { hasRole } from "@/lib/auth/rbac";
+import { getCrossSiteRequestResponse } from "@/lib/auth/request-security";
+import { readSessionUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 
 export const runtime = "nodejs";
@@ -55,6 +56,12 @@ function isUniqueConstraintError(error: unknown): boolean {
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
+  const crossSiteResponse = getCrossSiteRequestResponse(request);
+
+  if (crossSiteResponse) {
+    return crossSiteResponse;
+  }
+
   const currentUser = await readSessionUser();
 
   if (!currentUser) {
