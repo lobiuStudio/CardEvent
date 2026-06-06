@@ -435,7 +435,7 @@ export default async function ActivityDetailPage({ params }: ActivityPageProps) 
         {submissionsOpen ? (
           <Link
             className="flex min-h-11 flex-1 items-center justify-center rounded-md bg-zinc-950 px-4 text-sm font-medium text-white transition hover:bg-zinc-800"
-            href={`/activities/${activity.slug}/submissions/new`}
+            href={`/activities/${activity.slug}/submit`}
           >
             Submit card
           </Link>
