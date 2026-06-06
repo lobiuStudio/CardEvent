@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { verifyPassword } from "@/lib/auth/password";
+import { createSameOriginUrl, getSafeReturnPath } from "@/lib/auth/redirect";
 import { getCrossSiteRequestResponse } from "@/lib/auth/request-security";
 import { setSessionCookie } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
@@ -10,6 +11,7 @@ export const runtime = "nodejs";
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+  returnTo: z.string().optional(),
 });
 
 async function readRequestBody(request: Request): Promise<unknown> {
@@ -35,7 +37,7 @@ function redirectResponse(request: Request, path: string): NextResponse {
     return NextResponse.json({ redirectTo: path });
   }
 
-  return NextResponse.redirect(new URL(path, request.url), { status: 303 });
+  return NextResponse.redirect(createSameOriginUrl(request, path), { status: 303 });
 }
 
 function getLoginRedirectPath(roles: string[]): string {
@@ -82,5 +84,5 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   await setSessionCookie(user.id);
 
-  return redirectResponse(request, getLoginRedirectPath(roles));
+  return redirectResponse(request, getSafeReturnPath(parsed.data.returnTo) ?? getLoginRedirectPath(roles));
 }

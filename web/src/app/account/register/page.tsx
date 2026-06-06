@@ -1,9 +1,10 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
+import { Suspense, type FormEvent, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { BilingualText } from "@/components/ui/bilingual-text";
+import { getSafeReturnPath } from "@/lib/auth/redirect";
 import { bilingualLabel } from "@/lib/i18n/bilingual";
 
 type AuthResponse = {
@@ -14,10 +15,13 @@ type AuthResponse = {
 const inputClassName =
   "min-h-12 w-full rounded-md border-2 border-[var(--line)] bg-white px-3 text-base text-[var(--ink)] outline-none transition focus:border-[var(--line)] focus:ring-4 focus:ring-[rgb(255_209_102_/_0.55)]";
 
-export default function RegisterPage() {
+function RegisterPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const returnTo = getSafeReturnPath(searchParams.get("returnTo"));
+  const loginHref = returnTo ? `/account/login?returnTo=${encodeURIComponent(returnTo)}` : "/account/login";
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -70,6 +74,7 @@ export default function RegisterPage() {
         </div>
 
         <form className="paper-surface flex flex-col gap-5 rounded-lg border-2 border-[var(--line)] p-5 ink-shadow-sm" onSubmit={handleSubmit} noValidate>
+          {returnTo ? <input name="returnTo" type="hidden" value={returnTo} /> : null}
           <div className="flex flex-col gap-2">
             <label className="text-sm font-bold text-[var(--ink)]" htmlFor="displayName">
               <BilingualText en="Display name" zh="顯示名稱" />
@@ -119,11 +124,19 @@ export default function RegisterPage() {
               ? bilingualLabel({ en: "Creating account...", zh: "建立帳戶中..." })
               : bilingualLabel({ en: "Create account", zh: "建立帳戶" })}
           </button>
-          <Link className="text-center text-sm font-bold text-[var(--ink-muted)] hover:text-[var(--ink)]" href="/account/login">
+          <Link className="text-center text-sm font-bold text-[var(--ink-muted)] hover:text-[var(--ink)]" href={loginHref}>
             <BilingualText en="Already have an account?" zh="已有帳戶？" />
           </Link>
         </form>
       </section>
     </main>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense>
+      <RegisterPageContent />
+    </Suspense>
   );
 }

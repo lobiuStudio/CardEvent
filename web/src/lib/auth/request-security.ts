@@ -2,6 +2,28 @@ import { NextResponse } from "next/server";
 
 const allowedFetchSites = new Set(["same-origin", "none"]);
 
+function getAllowedRequestOrigins(request: Request): Set<string> {
+  const origins = new Set<string>();
+
+  try {
+    const requestUrl = new URL(request.url);
+    origins.add(requestUrl.origin);
+
+    const forwardedHost = request.headers.get("x-forwarded-host");
+    const host = forwardedHost ?? request.headers.get("host");
+
+    if (host) {
+      const forwardedProto = request.headers.get("x-forwarded-proto");
+      const protocol = forwardedProto ? `${forwardedProto}:` : requestUrl.protocol;
+      origins.add(`${protocol}//${host}`);
+    }
+  } catch {
+    return origins;
+  }
+
+  return origins;
+}
+
 export function isSameOriginRequest(request: Request): boolean {
   const fetchSite = request.headers.get("sec-fetch-site");
 
@@ -16,7 +38,7 @@ export function isSameOriginRequest(request: Request): boolean {
   }
 
   try {
-    return new URL(origin).origin === new URL(request.url).origin;
+    return getAllowedRequestOrigins(request).has(new URL(origin).origin);
   } catch {
     return false;
   }

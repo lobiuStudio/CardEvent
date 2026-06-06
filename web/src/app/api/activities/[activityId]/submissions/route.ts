@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth/rbac";
+import { createSameOriginUrl } from "@/lib/auth/redirect";
 import { getCrossSiteRequestResponse } from "@/lib/auth/request-security";
 import {
   countParticipantSubmissions,
@@ -26,7 +27,7 @@ function wantsJson(request: Request): boolean {
 }
 
 function redirectToSubmit(request: Request, slug: string, error: string): NextResponse {
-  const url = new URL(`/activities/${slug}/submit`, request.url);
+  const url = createSameOriginUrl(request, `/activities/${slug}/submit`);
   url.searchParams.set("error", error);
   return NextResponse.redirect(url, { status: 303 });
 }
@@ -40,7 +41,7 @@ function errorResponse(request: Request, error: string, status: number, activity
 }
 
 function successResponse(request: Request): NextResponse {
-  return NextResponse.redirect(new URL("/account/submissions", request.url), { status: 303 });
+  return NextResponse.redirect(createSameOriginUrl(request, "/account/submissions"), { status: 303 });
 }
 
 function stringValue(formData: FormData, name: string): string {

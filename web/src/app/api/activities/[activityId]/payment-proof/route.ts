@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth/rbac";
+import { createSameOriginUrl } from "@/lib/auth/redirect";
 import { getCrossSiteRequestResponse } from "@/lib/auth/request-security";
 import { createPaymentProof } from "@/lib/db/payment-repository";
 import { prisma } from "@/lib/db/prisma";
@@ -20,7 +21,7 @@ function wantsJson(request: Request): boolean {
 }
 
 function redirectToAccount(request: Request, key: "error" | "paymentProof", value: string): NextResponse {
-  const url = new URL("/account/submissions", request.url);
+  const url = createSameOriginUrl(request, "/account/submissions");
   url.searchParams.set(key, value);
   return NextResponse.redirect(url, { status: 303 });
 }

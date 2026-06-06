@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { hashEmailVerificationToken } from "@/lib/auth/email-verification";
 import { hashPassword } from "@/lib/auth/password";
+import { createSameOriginUrl, getSafeReturnPath } from "@/lib/auth/redirect";
 import { getCrossSiteRequestResponse } from "@/lib/auth/request-security";
 import { setSessionCookie } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
@@ -13,6 +14,7 @@ const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   displayName: z.string().min(1).max(80),
+  returnTo: z.string().optional(),
 });
 
 async function readRequestBody(request: Request): Promise<unknown> {
@@ -38,7 +40,7 @@ function redirectResponse(request: Request, path: string): NextResponse {
     return NextResponse.json({ redirectTo: path });
   }
 
-  return NextResponse.redirect(new URL(path, request.url), { status: 303 });
+  return NextResponse.redirect(createSameOriginUrl(request, path), { status: 303 });
 }
 
 function isUniqueConstraintError(error: unknown): boolean {
@@ -111,14 +113,14 @@ export async function POST(request: Request): Promise<NextResponse> {
       return createdUser;
     });
 
-    const verificationUrl = new URL(`/account/verify-email/${rawToken}`, request.url).toString();
+    const verificationUrl = createSameOriginUrl(request, `/account/verify-email/${rawToken}`).toString();
     if (process.env.NODE_ENV !== "production") {
       console.info(`Email verification URL for ${email}: ${verificationUrl}`);
     }
 
     await setSessionCookie(user.id);
 
-    return redirectResponse(request, "/activities");
+    return redirectResponse(request, getSafeReturnPath(parsed.data.returnTo) ?? "/activities");
   } catch (error) {
     if (isUniqueConstraintError(error)) {
       return errorResponse(request, "An account with this email already exists.", 409);

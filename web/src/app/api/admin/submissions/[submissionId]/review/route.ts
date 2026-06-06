@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { hasRole } from "@/lib/auth/rbac";
+import { createSameOriginUrl } from "@/lib/auth/redirect";
 import { getCrossSiteRequestResponse } from "@/lib/auth/request-security";
 import { readSessionUser } from "@/lib/auth/session";
 import { approveSubmission, rejectSubmission, ReviewSubmissionNotFoundError } from "@/lib/db/review-repository";
@@ -17,7 +18,7 @@ function wantsJson(request: Request): boolean {
 }
 
 function redirectToSubmissions(request: Request, key: "error" | "reviewed", value: string): NextResponse {
-  const url = new URL("/admin/submissions", request.url);
+  const url = createSameOriginUrl(request, "/admin/submissions");
   url.searchParams.set(key, value);
   return NextResponse.redirect(url, { status: 303 });
 }

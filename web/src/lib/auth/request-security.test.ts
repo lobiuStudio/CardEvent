@@ -15,6 +15,19 @@ describe("request security helpers", () => {
     expect(getCrossSiteRequestResponse(request)).toBeNull();
   });
 
+  it("allows same-origin browser requests when the framework canonicalizes request.url differently from Host", () => {
+    const request = new Request("http://localhost:3000/api/judge/scores", {
+      method: "POST",
+      headers: {
+        host: "127.0.0.1:3000",
+        origin: "http://127.0.0.1:3000",
+      },
+    });
+
+    expect(isSameOriginRequest(request)).toBe(true);
+    expect(getCrossSiteRequestResponse(request)).toBeNull();
+  });
+
   it("allows server and test POST requests without browser origin headers", () => {
     const request = new Request("https://cardevent.test/api/auth/login", {
       method: "POST",

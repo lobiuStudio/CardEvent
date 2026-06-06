@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { hashPassword } from "@/lib/auth/password";
+import { createSameOriginUrl } from "@/lib/auth/redirect";
 import { hasRole } from "@/lib/auth/rbac";
 import { getCrossSiteRequestResponse } from "@/lib/auth/request-security";
 import { readSessionUser } from "@/lib/auth/session";
@@ -30,7 +31,7 @@ function wantsJson(request: Request): boolean {
 }
 
 function redirectToUsers(request: Request, key: "created" | "error", value: string): NextResponse {
-  const url = new URL("/admin/users", request.url);
+  const url = createSameOriginUrl(request, "/admin/users");
   url.searchParams.set(key, value);
   return NextResponse.redirect(url, { status: 303 });
 }
