@@ -1,0 +1,241 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  passwordHash       String
+  displayName        String
+  emailVerifiedAt    DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  roles              UserRole[]
+  submissions        Submission[]
+  judgeMemberships   JudgeMembership[]
+  reviewDecisions    ReviewDecision[]
+  scores             Score[]
+  judgeComments      JudgeComment[]
+  verificationTokens EmailVerificationToken[]
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserRole {
+  id        String   @id @default(cuid())
+  userId    String
+  role      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role])
+}
+
+model Activity {
+  id                            String    @id @default(cuid())
+  slug                          String    @unique
+  title                         String
+  description                   String
+  mode                          String
+  rulesMarkdown                 String
+  submissionStartAt             DateTime
+  submissionDeadlineAt          DateTime
+  judgingDeadlineAt             DateTime
+  expectedResultAnnouncementAt  DateTime
+  perParticipantSubmissionLimit Int
+  maxImagesPerSubmission        Int
+  reviewRequired                Boolean
+  anonymousJudging              Boolean
+  paymentRequired               Boolean
+  paymentInstructions           String?
+  paymentChargingMode           String
+  driveFolderId                 String?
+  resultsPublishedAt            DateTime?
+  createdAt                     DateTime  @default(now())
+  updatedAt                     DateTime  @updatedAt
+
+  groups           ActivityGroup[]
+  criteria         GradingCriterion[]
+  submissions      Submission[]
+  judgeInvitations JudgeInvitation[]
+  judgeMemberships JudgeMembership[]
+}
+
+model ActivityGroup {
+  id           String @id @default(cuid())
+  activityId   String
+  name         String
+  displayOrder Int
+
+  activity    Activity     @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  submissions Submission[]
+
+  @@unique([activityId, name])
+}
+
+model GradingCriterion {
+  id           String  @id @default(cuid())
+  activityId   String
+  name         String
+  description  String?
+  displayOrder Int
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  scores   Score[]
+}
+
+model JudgeInvitation {
+  id         String    @id @default(cuid())
+  activityId String
+  tokenHash  String    @unique
+  email      String?
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+}
+
+model JudgeMembership {
+  id         String   @id @default(cuid())
+  activityId String
+  userId     String
+  createdAt  DateTime @default(now())
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([activityId, userId])
+}
+
+model Submission {
+  id                String    @id @default(cuid())
+  activityId        String
+  participantId     String
+  groupId           String?
+  cardName          String
+  gameOrSeries      String?
+  characterOrType   String?
+  description       String?
+  authorDisplayName String?
+  reviewStatus      String
+  paymentStatus     String
+  rejectionReason   String?
+  deletedAt         DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  activity        Activity           @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  participant     User               @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  group           ActivityGroup?     @relation(fields: [groupId], references: [id])
+  images          SubmissionImage[]
+  paymentProofs   PaymentProof[]
+  reviewDecisions ReviewDecision[]
+  scores          Score[]
+  judgeComments   JudgeComment[]
+  resultSnapshot  ResultSnapshot?
+}
+
+model SubmissionImage {
+  id              String   @id @default(cuid())
+  submissionId    String
+  storageProvider String
+  storageFileId   String
+  publicUrl       String
+  originalName    String
+  mimeType        String
+  fileSize        Int
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+}
+
+model PaymentProof {
+  id              String    @id @default(cuid())
+  activityId      String
+  submissionId    String?
+  participantId   String
+  storageProvider String
+  storageFileId   String
+  publicUrl       String
+  originalName    String
+  mimeType        String
+  fileSize        Int
+  status          String
+  reviewedAt      DateTime?
+  createdAt       DateTime  @default(now())
+
+  submission Submission? @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+}
+
+model ReviewDecision {
+  id           String   @id @default(cuid())
+  submissionId String
+  adminId      String
+  decision     String
+  reason       String?
+  createdAt    DateTime @default(now())
+
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  admin      User       @relation(fields: [adminId], references: [id], onDelete: Cascade)
+}
+
+model Score {
+  id           String   @id @default(cuid())
+  judgeId      String
+  submissionId String
+  criterionId  String
+  value        Float
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  judge      User             @relation(fields: [judgeId], references: [id], onDelete: Cascade)
+  submission Submission       @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  criterion  GradingCriterion @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+
+  @@unique([judgeId, submissionId, criterionId])
+}
+
+model JudgeComment {
+  id           String   @id @default(cuid())
+  judgeId      String
+  submissionId String
+  comment      String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  judge      User       @relation(fields: [judgeId], references: [id], onDelete: Cascade)
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@unique([judgeId, submissionId])
+}
+
+model ResultSnapshot {
+  id                    String    @id @default(cuid())
+  submissionId          String    @unique
+  finalScore            Float
+  rawAverage            Float
+  rank                  Int?
+  criterionAveragesJson String
+  publishedAt           DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+}
