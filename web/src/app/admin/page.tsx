@@ -183,18 +183,26 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                       </dl>
                     </div>
 
-                    <Link
-                      className="inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-medium text-zinc-950 ring-1 ring-zinc-200 transition hover:bg-zinc-50"
-                      href={`/activities/${activity.slug}`}
-                    >
-                      View
-                    </Link>
-                    <Link
-                      className="inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-medium text-zinc-950 ring-1 ring-zinc-200 transition hover:bg-zinc-50"
-                      href={`/admin/activities/${activity.id}/judges`}
-                    >
-                      Judges
-                    </Link>
+                    <div className="flex flex-col gap-2 sm:flex-row md:flex-col">
+                      <Link
+                        className="inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-medium text-zinc-950 ring-1 ring-zinc-200 transition hover:bg-zinc-50"
+                        href={`/activities/${activity.slug}`}
+                      >
+                        View
+                      </Link>
+                      <Link
+                        className="inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-medium text-zinc-950 ring-1 ring-zinc-200 transition hover:bg-zinc-50"
+                        href={`/admin/activities/${activity.id}/judges`}
+                      >
+                        Judges
+                      </Link>
+                      <Link
+                        className="inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-medium text-zinc-950 ring-1 ring-zinc-200 transition hover:bg-zinc-50"
+                        href={`/admin/activities/${activity.id}/results`}
+                      >
+                        Results
+                      </Link>
+                    </div>
                   </article>
                 );
               })}

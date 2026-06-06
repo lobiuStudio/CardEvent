@@ -160,6 +160,12 @@ export default async function AccountSubmissionsPage() {
               查看你提交的卡牌、圖片及活動狀態。
             </span>
           </p>
+          <Link
+            className="focus-ink w-fit rounded-md border-2 border-[var(--line)] bg-white px-4 py-2 text-sm font-bold text-[var(--ink)] transition hover:bg-[var(--sun)]"
+            href="/account/results"
+          >
+            <BilingualText en="View published results" zh="查看已公布結果" />
+          </Link>
         </header>
 
         {submissions.length ? (
