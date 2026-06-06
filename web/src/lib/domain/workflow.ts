@@ -25,20 +25,18 @@ export function getSubmissionJudgingEligibility(input: {
 }): { eligible: boolean; reason: EligibilityReason | null } {
   if (input.deletedAt) return { eligible: false, reason: "deleted" };
 
-  if (input.reviewRequired && input.reviewStatus === "pending") {
-    return { eligible: false, reason: "review_pending" };
+  if (input.reviewRequired && input.reviewStatus !== "approved") {
+    return {
+      eligible: false,
+      reason: input.reviewStatus === "rejected" ? "review_rejected" : "review_pending",
+    };
   }
 
-  if (input.reviewRequired && input.reviewStatus === "rejected") {
-    return { eligible: false, reason: "review_rejected" };
-  }
-
-  if (input.paymentRequired && input.paymentStatus === "pending") {
-    return { eligible: false, reason: "payment_pending" };
-  }
-
-  if (input.paymentRequired && input.paymentStatus === "rejected") {
-    return { eligible: false, reason: "payment_rejected" };
+  if (input.paymentRequired && input.paymentStatus !== "confirmed") {
+    return {
+      eligible: false,
+      reason: input.paymentStatus === "rejected" ? "payment_rejected" : "payment_pending",
+    };
   }
 
   return { eligible: true, reason: null };
@@ -51,9 +49,10 @@ export function canPublishResults(input: {
 }): { canPublish: boolean; missingJudgeSubmissionPairs: number } {
   const requiredPairs = input.eligibleSubmissionCount * input.judgeCount;
   const missingJudgeSubmissionPairs = Math.max(requiredPairs - input.completedJudgeSubmissionPairs, 0);
+  const hasJudgesForEligibleSubmissions = input.eligibleSubmissionCount === 0 || input.judgeCount > 0;
 
   return {
-    canPublish: missingJudgeSubmissionPairs === 0,
+    canPublish: hasJudgesForEligibleSubmissions && missingJudgeSubmissionPairs === 0,
     missingJudgeSubmissionPairs,
   };
 }
