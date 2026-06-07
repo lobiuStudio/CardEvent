@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { defineConfig, env } from "prisma/config";
+import { defineConfig } from "prisma/config";
 
 function resolveSqliteUrl(url: string) {
   if (url.startsWith("file:./") && !url.startsWith("file:./prisma/")) {
@@ -11,6 +11,6 @@ function resolveSqliteUrl(url: string) {
 
 export default defineConfig({
   datasource: {
-    url: resolveSqliteUrl(env("DATABASE_URL")),
+    url: resolveSqliteUrl(process.env.DATABASE_URL || "file:./dev.db"),
   },
 });

@@ -94,8 +94,14 @@ Commit after every task once that task's tests pass. Keep commits narrow so Clou
 - Create: `web/wrangler.jsonc`
 - Create: `web/open-next.config.ts`
 - Create: `web/public/_headers`
+- Create: `web/scripts/guard-cloudflare-deploy-env.mjs`
+- Create: `web/scripts/guard-cloudflare-deploy-env.test.mjs`
 - Modify: `web/package.json`
 - Modify: `web/package-lock.json`
+- Modify: `web/prisma.config.ts`
+- Modify: `web/src/lib/db/prisma.ts`
+- Modify: `web/tsconfig.json`
+- Modify: `web/eslint.config.mjs`
 - Modify: `web/.gitignore`
 
 - [ ] **Step 1: Install Cloudflare and D1 dependencies**
@@ -106,10 +112,9 @@ Run:
 cd web
 npm install @opennextjs/cloudflare@latest @prisma/adapter-d1
 npm install --save-dev wrangler@latest @cloudflare/workers-types
-npm uninstall googleapis
 ```
 
-Expected: `package.json` contains `@opennextjs/cloudflare` and `@prisma/adapter-d1`, dev dependencies contain `wrangler` and `@cloudflare/workers-types`, and `googleapis` is removed.
+Expected: `package.json` contains `@opennextjs/cloudflare` and `@prisma/adapter-d1`, dev dependencies contain `wrangler` and `@cloudflare/workers-types`, and the existing `googleapis` dependency remains until the Google Drive adapter is removed in Task 5.
 
 - [ ] **Step 2: Update package scripts**
 
@@ -119,11 +124,13 @@ Run:
 cd web
 npm pkg set scripts.postinstall="prisma generate"
 npm pkg set scripts.build="prisma generate && next build"
-npm pkg set scripts.build:cloudflare="opennextjs-cloudflare build"
-npm pkg set scripts.preview:cloudflare="opennextjs-cloudflare build && opennextjs-cloudflare preview"
-npm pkg set scripts.deploy:cloudflare="opennextjs-cloudflare build && opennextjs-cloudflare deploy"
-npm pkg set scripts.upload:cloudflare="opennextjs-cloudflare build && opennextjs-cloudflare upload"
-npm pkg set scripts.cf:typegen="wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
+npm pkg set scripts.test:cloudflare-guard="node --test scripts/guard-cloudflare-deploy-env.test.mjs"
+npm pkg set scripts.build:cloudflare="NODE_OPTIONS=--max-old-space-size=4096 opennextjs-cloudflare build"
+npm pkg set scripts.preview:cloudflare="NODE_OPTIONS=--max-old-space-size=4096 opennextjs-cloudflare build && opennextjs-cloudflare preview"
+npm pkg set scripts.check:cloudflare-deploy-env="node scripts/guard-cloudflare-deploy-env.mjs"
+npm pkg set scripts.deploy:cloudflare="npm run check:cloudflare-deploy-env && NODE_OPTIONS=--max-old-space-size=4096 opennextjs-cloudflare build && opennextjs-cloudflare deploy"
+npm pkg set scripts.upload:cloudflare="npm run check:cloudflare-deploy-env && NODE_OPTIONS=--max-old-space-size=4096 opennextjs-cloudflare build && opennextjs-cloudflare upload"
+npm pkg set scripts.cf:typegen="mkdir -p .wrangler/types && wrangler types --env-interface CloudflareEnv .wrangler/types/cloudflare-env.d.ts"
 npm pkg set scripts.d1:migration:init="mkdir -p prisma/migrations && prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script > prisma/migrations/0001_init.sql"
 npm pkg set scripts.d1:apply:local="wrangler d1 execute cardevent-db --local --file ./prisma/migrations/0001_init.sql"
 npm pkg set scripts.d1:apply:remote="wrangler d1 execute cardevent-db --remote --file ./prisma/migrations/0001_init.sql"
@@ -131,7 +138,98 @@ npm pkg set scripts.d1:apply:remote="wrangler d1 execute cardevent-db --remote -
 
 Expected: scripts are present exactly with those command names. `npm run build` still runs the normal Next build path used by OpenNext.
 
-- [ ] **Step 3: Add Wrangler config**
+- [ ] **Step 3: Make Prisma generation and runtime use local fallback without a database environment**
+
+Modify `web/prisma.config.ts`:
+
+```ts
+import "dotenv/config";
+import { defineConfig } from "prisma/config";
+
+function resolveSqliteUrl(url: string) {
+  if (url.startsWith("file:./") && !url.startsWith("file:./prisma/")) {
+    return `file:./prisma/${url.slice("file:./".length)}`;
+  }
+
+  return url;
+}
+
+export default defineConfig({
+  datasource: {
+    url: resolveSqliteUrl(process.env.DATABASE_URL || "file:./dev.db"),
+  },
+});
+```
+
+Expected: `DATABASE_URL= npx prisma generate` works on a clean install because the empty value falls back to local SQLite.
+
+Modify `web/src/lib/db/prisma.ts` so the runtime Prisma client uses the same empty-string fallback:
+
+```ts
+const adapter = new PrismaBetterSqlite3({
+  url: resolveSqliteUrl(process.env.DATABASE_URL || "file:./dev.db"),
+});
+```
+
+Expected: local runtime builds that set `DATABASE_URL=` still use `file:./dev.db` until Task 3 adds explicit D1 provider selection.
+
+- [ ] **Step 4: Add Cloudflare deploy local-state guard**
+
+Create `web/scripts/guard-cloudflare-deploy-env.mjs`:
+
+```js
+import { existsSync, readdirSync, statSync } from "node:fs";
+import path from "node:path";
+
+const projectRoot = path.resolve(process.env.CLOUDFLARE_DEPLOY_ENV_ROOT ?? process.cwd());
+const blockedPaths = [];
+
+for (const fileName of readdirSync(projectRoot)) {
+  const fullPath = path.join(projectRoot, fileName);
+  const stat = statSync(fullPath);
+
+  if (fileName.startsWith(".env") && fileName !== ".env.example") {
+    blockedPaths.push(fileName);
+    continue;
+  }
+
+  if (stat.isFile() && fileName.endsWith(".pem")) {
+    blockedPaths.push(fileName);
+    continue;
+  }
+
+  if (stat.isDirectory() && fileName === "uploads") {
+    blockedPaths.push(`${fileName}/`);
+  }
+}
+
+const prismaDir = path.join(projectRoot, "prisma");
+if (existsSync(prismaDir)) {
+  for (const fileName of readdirSync(prismaDir)) {
+    if (/\.db(?:-(?:journal|wal|shm))?$/.test(fileName)) {
+      blockedPaths.push(`prisma/${fileName}`);
+    }
+  }
+}
+
+blockedPaths.sort();
+
+if (blockedPaths.length > 0) {
+  console.error(
+    `Refusing Cloudflare deploy/upload with local runtime artifact(s): ${blockedPaths.join(", ")}.`,
+  );
+  console.error(
+    "OpenNext can trace ignored local files into the Worker bundle. Move local env files, SQLite databases, uploads, and private keys out of web/ before deploying, and configure production values in Cloudflare Pages bindings/secrets.",
+  );
+  process.exit(1);
+}
+```
+
+Expected: `npm run deploy:cloudflare` and `npm run upload:cloudflare` refuse to run when local runtime artifacts are present in `web/`: root files beginning with `.env` except `.env.example`, root `*.pem` files, root `uploads/`, and Prisma SQLite artifacts such as `prisma/*.db`, `prisma/*.db-journal`, `prisma/*.db-wal`, or `prisma/*.db-shm`. Keep `build:cloudflare` and `preview:cloudflare` unguarded so local build and preview remain usable.
+
+Create `web/scripts/guard-cloudflare-deploy-env.test.mjs` using Node's built-in test runner to verify the guard passes for a clean directory and `.env.example`, and fails for `.env`, `.envrc`, root `local.pem`, root `uploads/`, `prisma/dev.db`, and `prisma/dev.db-wal`.
+
+- [ ] **Step 5: Add Wrangler config**
 
 Create `web/wrangler.jsonc`:
 
@@ -160,7 +258,7 @@ Create `web/wrangler.jsonc`:
 
 The Pages project bindings for `DB` and `CARD_EVENT_UPLOADS` are configured in Cloudflare Pages settings in Task 11. Keep account-generated IDs out of committed config unless the user asks to manage Cloudflare resources entirely through Wrangler config.
 
-- [ ] **Step 4: Add explicit OpenNext config**
+- [ ] **Step 6: Add explicit OpenNext config**
 
 Create `web/open-next.config.ts`:
 
@@ -170,7 +268,7 @@ import { defineCloudflareConfig } from "@opennextjs/cloudflare";
 export default defineCloudflareConfig();
 ```
 
-- [ ] **Step 5: Add static asset cache headers**
+- [ ] **Step 7: Add static asset cache headers**
 
 Create `web/public/_headers`:
 
@@ -179,7 +277,7 @@ Create `web/public/_headers`:
   Cache-Control: public,max-age=31536000,immutable
 ```
 
-- [ ] **Step 6: Ignore generated Prisma output when used**
+- [ ] **Step 8: Ignore and exclude generated output**
 
 Modify `web/.gitignore` by adding:
 
@@ -192,32 +290,52 @@ Modify `web/.gitignore` by adding:
 
 # Cloudflare local state
 /.wrangler/
-cloudflare-env.d.ts
 ```
 
-- [ ] **Step 7: Verify tooling install**
+Modify `web/tsconfig.json` so generated Cloudflare, OpenNext, and Prisma output is excluded:
+
+```json
+"exclude": ["node_modules", ".wrangler", ".open-next", "src/generated/prisma"]
+```
+
+Modify `web/eslint.config.mjs` so generated Cloudflare, OpenNext, and Prisma output is ignored by ESLint:
+
+```js
+globalIgnores([
+  ".next/**",
+  "out/**",
+  "build/**",
+  "next-env.d.ts",
+  ".open-next/**",
+  ".wrangler/**",
+  "src/generated/prisma/**",
+])
+```
+
+Expected: `build:cloudflare` can produce local `.open-next` build artifacts for local build/preview workflows, and `cf:typegen` can produce `.wrangler/types/cloudflare-env.d.ts`, without causing `npm run typecheck` or `npm run lint` to traverse generated output. `deploy:cloudflare` and `upload:cloudflare` remain guarded publish paths and must refuse to run when local runtime artifacts are present.
+
+- [ ] **Step 9: Verify tooling install**
 
 Run:
 
 ```bash
 cd web
-npm run typecheck
-npm test -- --runInBand
+DATABASE_URL= npm_config_cache=/tmp/cardevent-npm-cache npm run build:cloudflare
+npm_config_cache=/tmp/cardevent-npm-cache npm run test:cloudflare-guard
+rm -rf .wrangler/types
+npm_config_cache=/tmp/cardevent-npm-cache npm run cf:typegen
+npm_config_cache=/tmp/cardevent-npm-cache npm run typecheck
+npm_config_cache=/tmp/cardevent-npm-cache npm test
+npm_config_cache=/tmp/cardevent-npm-cache npm run build:cloudflare
+npm_config_cache=/tmp/cardevent-npm-cache npm run lint
 ```
 
-If Vitest rejects `--runInBand`, run:
+Expected: `DATABASE_URL=` Cloudflare build passes, the deploy guard tests pass, Prisma generation, Cloudflare type generation, typecheck, tests, Cloudflare build, and lint pass. `cf:typegen` writes `.wrangler/types/cloudflare-env.d.ts`, which is ignored and excluded from TypeScript and ESLint input. A failure caused only by unimplemented imports in later tasks is not expected at this stage.
+
+- [ ] **Step 10: Commit**
 
 ```bash
-cd web
-npm test
-```
-
-Expected: typecheck and tests pass. A failure caused only by unimplemented imports in later tasks is not expected at this stage.
-
-- [ ] **Step 8: Commit**
-
-```bash
-git add web/package.json web/package-lock.json web/wrangler.jsonc web/open-next.config.ts web/public/_headers web/.gitignore
+git add web/package.json web/package-lock.json web/prisma.config.ts web/src/lib/db/prisma.ts web/tsconfig.json web/eslint.config.mjs web/wrangler.jsonc web/open-next.config.ts web/public/_headers web/scripts/guard-cloudflare-deploy-env.mjs web/scripts/guard-cloudflare-deploy-env.test.mjs web/.gitignore
 git commit -m "chore: add cloudflare build tooling"
 ```
 
@@ -674,6 +792,8 @@ git commit -m "feat: add r2 object key helpers"
 ### Task 5: Replace Google Drive With R2 File Storage
 
 **Files:**
+- Modify: `web/package.json`
+- Modify: `web/package-lock.json`
 - Modify: `web/src/lib/files/file-storage.ts`
 - Create: `web/src/lib/files/r2-storage.ts`
 - Create: `web/src/lib/files/r2-storage.test.ts`
@@ -1158,7 +1278,14 @@ export function getFileStorage(): FileStorage {
 }
 ```
 
-- [ ] **Step 8: Delete Google Drive adapter**
+- [ ] **Step 8: Delete Google Drive adapter and dependency**
+
+Run:
+
+```bash
+cd web
+npm uninstall googleapis
+```
 
 Delete `web/src/lib/files/google-drive-storage.ts`.
 

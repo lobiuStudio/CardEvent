@@ -14,7 +14,7 @@ function resolveSqliteUrl(url: string) {
 }
 
 const adapter = new PrismaBetterSqlite3({
-  url: resolveSqliteUrl(process.env.DATABASE_URL ?? "file:./dev.db"),
+  url: resolveSqliteUrl(process.env.DATABASE_URL || "file:./dev.db"),
 });
 
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter });

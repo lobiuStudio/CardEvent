@@ -4,19 +4,32 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest --run",
     "test:watch": "vitest",
+    "test:cloudflare-guard": "node --test scripts/guard-cloudflare-deploy-env.test.mjs",
     "e2e": "playwright test",
     "typecheck": "tsc --noEmit",
     "db:push": "prisma db push && prisma generate",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "postinstall": "prisma generate",
+    "build:cloudflare": "NODE_OPTIONS=--max-old-space-size=4096 opennextjs-cloudflare build",
+    "preview:cloudflare": "NODE_OPTIONS=--max-old-space-size=4096 opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "check:cloudflare-deploy-env": "node scripts/guard-cloudflare-deploy-env.mjs",
+    "deploy:cloudflare": "npm run check:cloudflare-deploy-env && NODE_OPTIONS=--max-old-space-size=4096 opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "upload:cloudflare": "npm run check:cloudflare-deploy-env && NODE_OPTIONS=--max-old-space-size=4096 opennextjs-cloudflare build && opennextjs-cloudflare upload",
+    "cf:typegen": "mkdir -p .wrangler/types && wrangler types --env-interface CloudflareEnv .wrangler/types/cloudflare-env.d.ts",
+    "d1:migration:init": "mkdir -p prisma/migrations && prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script > prisma/migrations/0001_init.sql",
+    "d1:apply:local": "wrangler d1 execute cardevent-db --local --file ./prisma/migrations/0001_init.sql",
+    "d1:apply:remote": "wrangler d1 execute cardevent-db --remote --file ./prisma/migrations/0001_init.sql"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
+    "@opennextjs/cloudflare": "^1.19.11",
     "@prisma/adapter-better-sqlite3": "^7.8.0",
+    "@prisma/adapter-d1": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.10.0",
@@ -33,6 +46,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260607.1",
     "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
@@ -52,6 +66,7 @@
     "tsx": "^4.22.4",
     "typescript": "^5",
     "vite-tsconfig-paths": "^6.1.1",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.8",
+    "wrangler": "^4.98.0"
   }
 }
