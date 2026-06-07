@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
   hashPassword: vi.fn(),
   hasRole: vi.fn(),
   readSessionUser: vi.fn(),
-  transaction: vi.fn(),
   userCreate: vi.fn(),
   userDelete: vi.fn(),
   userFindUnique: vi.fn(),
@@ -33,7 +32,6 @@ vi.mock("@/lib/auth/session", () => ({
 
 vi.mock("@/lib/db/prisma", () => ({
   prisma: {
-    $transaction: mocks.transaction,
     user: {
       create: mocks.userCreate,
       delete: mocks.userDelete,
@@ -72,16 +70,6 @@ describe("admin user route", () => {
     mocks.userFindUnique.mockResolvedValue(null);
     mocks.userCreate.mockResolvedValue({ id: "user-1" });
     mocks.userDelete.mockResolvedValue({});
-    mocks.transaction.mockImplementation(async (callback) =>
-      callback({
-        user: {
-          create: mocks.userCreate,
-        },
-        userRole: {
-          create: mocks.userRoleCreate,
-        },
-      }),
-    );
   });
 
   it("cleans up a partially created user without relying on a transaction", async () => {
@@ -89,7 +77,6 @@ describe("admin user route", () => {
 
     await expect(POST(createAdminUserRequest())).rejects.toThrow("role failed");
 
-    expect(mocks.transaction).not.toHaveBeenCalled();
     expect(mocks.userDelete).toHaveBeenCalledWith({ where: { id: "user-1" } });
   });
 });

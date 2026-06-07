@@ -33,88 +33,84 @@ export function createPaymentProof(input: CreatePaymentProofInput) {
 }
 
 export async function confirmPaymentProof(paymentProofId: string) {
-  return prisma.$transaction(async (tx) => {
-    const proof = await tx.paymentProof.findUnique({
-      where: {
-        id: paymentProofId,
-      },
-      include: {
-        activity: {
-          select: {
-            paymentChargingMode: true,
-          },
+  const proof = await prisma.paymentProof.findUnique({
+    where: {
+      id: paymentProofId,
+    },
+    include: {
+      activity: {
+        select: {
+          paymentChargingMode: true,
         },
       },
-    });
+    },
+  });
 
-    if (!proof) {
-      throw new PaymentProofNotFoundError();
-    }
+  if (!proof) {
+    throw new PaymentProofNotFoundError();
+  }
 
-    const reviewedAt = new Date();
-    const updatedProof = await tx.paymentProof.update({
+  const reviewedAt = new Date();
+  const updatedProof = await prisma.paymentProof.update({
+    where: {
+      id: paymentProofId,
+    },
+    data: {
+      status: "confirmed",
+      reviewedAt,
+    },
+  });
+
+  if (proof.submissionId) {
+    await prisma.submission.updateMany({
       where: {
-        id: paymentProofId,
+        id: proof.submissionId,
+        activityId: proof.activityId,
+        participantId: proof.participantId,
+        deletedAt: null,
       },
       data: {
-        status: "confirmed",
-        reviewedAt,
+        paymentStatus: "confirmed",
       },
     });
+  } else if (proof.activity.paymentChargingMode === "per_participant") {
+    await prisma.submission.updateMany({
+      where: {
+        activityId: proof.activityId,
+        participantId: proof.participantId,
+        deletedAt: null,
+      },
+      data: {
+        paymentStatus: "confirmed",
+      },
+    });
+  }
 
-    if (proof.submissionId) {
-      await tx.submission.updateMany({
-        where: {
-          id: proof.submissionId,
-          activityId: proof.activityId,
-          participantId: proof.participantId,
-          deletedAt: null,
-        },
-        data: {
-          paymentStatus: "confirmed",
-        },
-      });
-    } else if (proof.activity.paymentChargingMode === "per_participant") {
-      await tx.submission.updateMany({
-        where: {
-          activityId: proof.activityId,
-          participantId: proof.participantId,
-          deletedAt: null,
-        },
-        data: {
-          paymentStatus: "confirmed",
-        },
-      });
-    }
-
-    return updatedProof;
-  });
+  return updatedProof;
 }
 
 export async function rejectPaymentProof(paymentProofId: string) {
-  return prisma.$transaction(async (tx) => {
-    const proof = await tx.paymentProof.findUnique({
-      where: {
-        id: paymentProofId,
-      },
-      select: {
-        id: true,
-      },
-    });
+  const proof = await prisma.paymentProof.findUnique({
+    where: {
+      id: paymentProofId,
+    },
+    select: {
+      id: true,
+    },
+  });
 
-    if (!proof) {
-      throw new PaymentProofNotFoundError();
-    }
+  if (!proof) {
+    throw new PaymentProofNotFoundError();
+  }
 
-    return tx.paymentProof.update({
-      where: {
-        id: paymentProofId,
-      },
-      data: {
-        status: "rejected",
-        reviewedAt: new Date(),
-      },
-    });
+  return prisma.paymentProof.update({
+    where: {
+      id: paymentProofId,
+    },
+    data: {
+      status: "rejected",
+      reviewedAt: new Date(),
+    },
   });
 }
 

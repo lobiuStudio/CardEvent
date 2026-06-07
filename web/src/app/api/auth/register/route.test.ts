@@ -10,7 +10,6 @@ const mocks = vi.hoisted(() => ({
   hashPassword: vi.fn(),
   sendEmail: vi.fn(),
   setSessionCookie: vi.fn(),
-  transaction: vi.fn(),
   userCreate: vi.fn(),
   userDelete: vi.fn(),
   userFindUnique: vi.fn(),
@@ -35,7 +34,6 @@ vi.mock("@/lib/auth/session", () => ({
 
 vi.mock("@/lib/db/prisma", () => ({
   prisma: {
-    $transaction: mocks.transaction,
     emailVerificationToken: {
       create: mocks.emailVerificationTokenCreate,
     },
@@ -84,19 +82,6 @@ describe("registration route", () => {
     mocks.userCreate.mockResolvedValue({ id: "user-1" });
     mocks.userRoleCreate.mockResolvedValue({});
     mocks.userDelete.mockResolvedValue({});
-    mocks.transaction.mockImplementation(async (callback) =>
-      callback({
-        emailVerificationToken: {
-          create: mocks.emailVerificationTokenCreate,
-        },
-        user: {
-          create: mocks.userCreate,
-        },
-        userRole: {
-          create: mocks.userRoleCreate,
-        },
-      }),
-    );
   });
 
   it("cleans up a partially created user without relying on a transaction", async () => {
@@ -104,7 +89,6 @@ describe("registration route", () => {
 
     await expect(POST(createRegisterRequest())).rejects.toThrow("token failed");
 
-    expect(mocks.transaction).not.toHaveBeenCalled();
     expect(mocks.userDelete).toHaveBeenCalledWith({ where: { id: "user-1" } });
     expect(mocks.setSessionCookie).not.toHaveBeenCalled();
     expect(mocks.sendEmail).not.toHaveBeenCalled();

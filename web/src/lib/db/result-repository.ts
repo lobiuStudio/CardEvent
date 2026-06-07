@@ -168,78 +168,72 @@ export async function buildDraftResults(activityId: string): Promise<void> {
         submission,
         finalScore,
       };
-    });
+  });
   const completedSubmissionIds = completedSnapshotInputs.map(({ submission }) => submission.id);
 
-  await prisma.$transaction(async (tx) => {
-    await tx.resultSnapshot.deleteMany({
-      where: {
-        publishedAt: null,
-        submission: {
-          activityId,
-          id: {
-            notIn: completedSubmissionIds,
-          },
+  await prisma.resultSnapshot.deleteMany({
+    where: {
+      publishedAt: null,
+      submission: {
+        activityId,
+        id: {
+          notIn: completedSubmissionIds,
         },
       },
-    });
+    },
+  });
 
-    await Promise.all(
-      completedSnapshotInputs.map(({ finalScore, submission }) =>
-        tx.resultSnapshot.upsert({
-          where: {
-            submissionId: submission.id,
-          },
-          create: {
-            submissionId: submission.id,
-            finalScore: finalScore.finalScore,
-            rawAverage: finalScore.rawAverage,
-            rank: null,
-            criterionAveragesJson: JSON.stringify(finalScore.criterionAverages),
-          },
-          update: {
-            finalScore: finalScore.finalScore,
-            rawAverage: finalScore.rawAverage,
-            criterionAveragesJson: JSON.stringify(finalScore.criterionAverages),
-          },
-        }),
-      ),
+  for (const { finalScore, submission } of completedSnapshotInputs) {
+    await prisma.resultSnapshot.upsert({
+      where: {
+        submissionId: submission.id,
+      },
+      create: {
+        submissionId: submission.id,
+        finalScore: finalScore.finalScore,
+        rawAverage: finalScore.rawAverage,
+        rank: null,
+        criterionAveragesJson: JSON.stringify(finalScore.criterionAverages),
+      },
+      update: {
+        finalScore: finalScore.finalScore,
+        rawAverage: finalScore.rawAverage,
+        criterionAveragesJson: JSON.stringify(finalScore.criterionAverages),
+      },
+    });
+  }
+
+  if (activity.mode === "competition") {
+    const rankedResults = rankCompetitionResults(
+      completedSnapshotInputs.map(({ finalScore, submission }) => ({
+        submissionId: submission.id,
+        groupId: submission.groupId ?? "ungrouped",
+        finalScore: finalScore.finalScore,
+      })),
     );
 
-    if (activity.mode === "competition") {
-      const rankedResults = rankCompetitionResults(
-        completedSnapshotInputs.map(({ finalScore, submission }) => ({
-          submissionId: submission.id,
-          groupId: submission.groupId ?? "ungrouped",
-          finalScore: finalScore.finalScore,
-        })),
-      );
-
-      await Promise.all(
-        rankedResults.map((result) =>
-          tx.resultSnapshot.update({
-            where: {
-              submissionId: result.submissionId,
-            },
-            data: {
-              rank: result.rank,
-            },
-          }),
-        ),
-      );
-    } else {
-      await tx.resultSnapshot.updateMany({
+    for (const result of rankedResults) {
+      await prisma.resultSnapshot.update({
         where: {
-          submissionId: {
-            in: completedSubmissionIds,
-          },
+          submissionId: result.submissionId,
         },
         data: {
-          rank: null,
+          rank: result.rank,
         },
       });
     }
-  });
+  } else {
+    await prisma.resultSnapshot.updateMany({
+      where: {
+        submissionId: {
+          in: completedSubmissionIds,
+        },
+      },
+      data: {
+        rank: null,
+      },
+    });
+  }
 }
 
 export async function getResultReview(activityId: string): Promise<{
@@ -324,26 +318,25 @@ export async function publishResults(activityId: string): Promise<void> {
 
   const publishedAt = new Date();
 
-  await prisma.$transaction([
-    prisma.activity.update({
-      where: {
-        id: activityId,
+  await prisma.resultSnapshot.updateMany({
+    where: {
+      submission: {
+        activityId,
       },
-      data: {
-        resultsPublishedAt: publishedAt,
-      },
-    }),
-    prisma.resultSnapshot.updateMany({
-      where: {
-        submission: {
-          activityId,
-        },
-      },
-      data: {
-        publishedAt,
-      },
-    }),
-  ]);
+    },
+    data: {
+      publishedAt,
+    },
+  });
+
+  await prisma.activity.update({
+    where: {
+      id: activityId,
+    },
+    data: {
+      resultsPublishedAt: publishedAt,
+    },
+  });
 }
 
 export async function getPublishedCompetitionResultsBySlug(slug: string): Promise<PublicActivityResults | null> {

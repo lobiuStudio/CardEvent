@@ -113,73 +113,78 @@ export async function acceptJudgeInvitation(
   const store = getStore(deps);
   const now = getNow(deps);
   const tokenHash = hashJudgeInvitationToken(input.rawToken);
+  const invitation = await store.judgeInvitation.findUnique({
+    where: {
+      tokenHash,
+    },
+    select: {
+      id: true,
+      activityId: true,
+      acceptedAt: true,
+      expiresAt: true,
+    },
+  });
 
-  return store.$transaction(async (tx) => {
-    const invitation = await tx.judgeInvitation.findUnique({
-      where: {
-        tokenHash,
+  if (!invitation) {
+    throw new JudgeInvitationNotFoundError();
+  }
+
+  if (invitation.expiresAt <= now) {
+    throw new JudgeInvitationExpiredError();
+  }
+
+  if (invitation.acceptedAt) {
+    throw new JudgeInvitationAlreadyAcceptedError();
+  }
+
+  const claimed = await store.judgeInvitation.updateMany({
+    where: {
+      id: invitation.id,
+      acceptedAt: null,
+      expiresAt: {
+        gt: now,
       },
-      select: {
-        id: true,
-        activityId: true,
-        acceptedAt: true,
-        expiresAt: true,
-      },
-    });
+    },
+    data: {
+      acceptedAt: now,
+    },
+  });
 
-    if (!invitation) {
-      throw new JudgeInvitationNotFoundError();
-    }
+  if (claimed.count !== 1) {
+    throw new JudgeInvitationAlreadyAcceptedError();
+  }
 
-    if (invitation.expiresAt <= now) {
-      throw new JudgeInvitationExpiredError();
-    }
-
-    if (invitation.acceptedAt) {
-      throw new JudgeInvitationAlreadyAcceptedError();
-    }
-
-    await tx.judgeMembership.upsert({
-      where: {
-        activityId_userId: {
-          activityId: invitation.activityId,
-          userId: input.userId,
-        },
-      },
-      create: {
+  await store.judgeMembership.upsert({
+    where: {
+      activityId_userId: {
         activityId: invitation.activityId,
         userId: input.userId,
       },
-      update: {},
-    });
+    },
+    create: {
+      activityId: invitation.activityId,
+      userId: input.userId,
+    },
+    update: {},
+  });
 
-    await tx.userRole.upsert({
-      where: {
-        userId_role: {
-          userId: input.userId,
-          role: "judge",
-        },
-      },
-      create: {
+  await store.userRole.upsert({
+    where: {
+      userId_role: {
         userId: input.userId,
         role: "judge",
       },
-      update: {},
-    });
-
-    await tx.judgeInvitation.update({
-      where: {
-        id: invitation.id,
-      },
-      data: {
-        acceptedAt: now,
-      },
-    });
-
-    return {
-      activityId: invitation.activityId,
-    };
+    },
+    create: {
+      userId: input.userId,
+      role: "judge",
+    },
+    update: {},
   });
+
+  return {
+    activityId: invitation.activityId,
+  };
 }
 
 export async function listJudgeEligibleSubmissions(
@@ -252,100 +257,95 @@ export async function upsertJudgeScores(
   deps: JudgeRepositoryDeps = {},
 ): Promise<void> {
   const store = getStore(deps);
+  const submission = await store.submission.findUnique({
+    where: {
+      id: input.submissionId,
+    },
+    select: {
+      id: true,
+      activityId: true,
+    },
+  });
 
-  await store.$transaction(async (tx) => {
-    const submission = await tx.submission.findUnique({
-      where: {
-        id: input.submissionId,
-      },
-      select: {
-        id: true,
-        activityId: true,
-      },
-    });
+  if (!submission) {
+    throw new JudgeSubmissionNotFoundError();
+  }
 
-    if (!submission) {
-      throw new JudgeSubmissionNotFoundError();
-    }
-
-    const membership = await tx.judgeMembership.findUnique({
-      where: {
-        activityId_userId: {
-          activityId: submission.activityId,
-          userId: input.judgeId,
-        },
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (!membership) {
-      throw new JudgeMembershipRequiredError();
-    }
-
-    const criteria = await tx.gradingCriterion.findMany({
-      where: {
+  const membership = await store.judgeMembership.findUnique({
+    where: {
+      activityId_userId: {
         activityId: submission.activityId,
+        userId: input.judgeId,
       },
-      select: {
-        id: true,
-      },
-    });
-    const validCriterionIds = new Set(criteria.map((criterion) => criterion.id));
-    const seenCriterionIds = new Set<string>();
+    },
+    select: {
+      id: true,
+    },
+  });
 
-    for (const score of input.scores) {
-      if (!validCriterionIds.has(score.criterionId) || seenCriterionIds.has(score.criterionId)) {
-        throw new JudgeScoreCriteriaMismatchError();
-      }
+  if (!membership) {
+    throw new JudgeMembershipRequiredError();
+  }
 
-      seenCriterionIds.add(score.criterionId);
+  const criteria = await store.gradingCriterion.findMany({
+    where: {
+      activityId: submission.activityId,
+    },
+    select: {
+      id: true,
+    },
+  });
+  const validCriterionIds = new Set(criteria.map((criterion) => criterion.id));
+  const seenCriterionIds = new Set<string>();
+
+  for (const score of input.scores) {
+    if (!validCriterionIds.has(score.criterionId) || seenCriterionIds.has(score.criterionId)) {
+      throw new JudgeScoreCriteriaMismatchError();
     }
 
-    await Promise.all(
-      input.scores.map((score) =>
-        tx.score.upsert({
-          where: {
-            judgeId_submissionId_criterionId: {
-              judgeId: input.judgeId,
-              submissionId: submission.id,
-              criterionId: score.criterionId,
-            },
-          },
-          create: {
-            activityId: submission.activityId,
-            judgeId: input.judgeId,
-            submissionId: submission.id,
-            criterionId: score.criterionId,
-            value: score.value,
-          },
-          update: {
-            value: score.value,
-          },
-        }),
-      ),
-    );
+    seenCriterionIds.add(score.criterionId);
+  }
 
-    if (typeof input.comment === "string") {
-      await tx.judgeComment.upsert({
-        where: {
-          judgeId_submissionId: {
-            judgeId: input.judgeId,
-            submissionId: submission.id,
-          },
-        },
-        create: {
+  for (const score of input.scores) {
+    await store.score.upsert({
+      where: {
+        judgeId_submissionId_criterionId: {
           judgeId: input.judgeId,
           submissionId: submission.id,
-          comment: input.comment,
+          criterionId: score.criterionId,
         },
-        update: {
-          comment: input.comment,
+      },
+      create: {
+        activityId: submission.activityId,
+        judgeId: input.judgeId,
+        submissionId: submission.id,
+        criterionId: score.criterionId,
+        value: score.value,
+      },
+      update: {
+        value: score.value,
+      },
+    });
+  }
+
+  if (typeof input.comment === "string") {
+    await store.judgeComment.upsert({
+      where: {
+        judgeId_submissionId: {
+          judgeId: input.judgeId,
+          submissionId: submission.id,
         },
-      });
-    }
-  });
+      },
+      create: {
+        judgeId: input.judgeId,
+        submissionId: submission.id,
+        comment: input.comment,
+      },
+      update: {
+        comment: input.comment,
+      },
+    });
+  }
 }
 
 export async function countCompletedJudgeSubmissionPairs(

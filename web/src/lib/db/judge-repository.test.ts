@@ -46,21 +46,22 @@ describe("judge invitation repository", () => {
   });
 
   it("rejects expired invitation tokens without creating a membership", async () => {
-    const tx = {
+    const store = {
       judgeInvitation: {
         findUnique: vi.fn(async () => ({
           id: "invitation-1",
           activityId: "activity-1",
+          acceptedAt: null,
           expiresAt: new Date("2026-06-01T00:00:00.000Z"),
         })),
-        update: vi.fn(),
+        updateMany: vi.fn(async () => ({ count: 1 })),
       },
       judgeMembership: {
         upsert: vi.fn(),
       },
-    };
-    const store = {
-      $transaction: vi.fn(async (callback) => callback(tx)),
+      userRole: {
+        upsert: vi.fn(),
+      },
     };
 
     await expect(
@@ -73,12 +74,13 @@ describe("judge invitation repository", () => {
       ),
     ).rejects.toBeInstanceOf(JudgeInvitationExpiredError);
 
-    expect(tx.judgeMembership.upsert).not.toHaveBeenCalled();
-    expect(tx.judgeInvitation.update).not.toHaveBeenCalled();
+    expect(store.judgeMembership.upsert).not.toHaveBeenCalled();
+    expect(store.judgeInvitation.updateMany).not.toHaveBeenCalled();
+    expect(store.userRole.upsert).not.toHaveBeenCalled();
   });
 
   it("accepts a valid invitation by creating judge role and activity membership", async () => {
-    const tx = {
+    const store = {
       judgeInvitation: {
         findUnique: vi.fn(async () => ({
           id: "invitation-1",
@@ -86,7 +88,7 @@ describe("judge invitation repository", () => {
           acceptedAt: null,
           expiresAt: new Date("2026-06-03T00:00:00.000Z"),
         })),
-        update: vi.fn(async () => ({})),
+        updateMany: vi.fn(async () => ({ count: 1 })),
       },
       judgeMembership: {
         upsert: vi.fn(async () => ({})),
@@ -94,9 +96,6 @@ describe("judge invitation repository", () => {
       userRole: {
         upsert: vi.fn(async () => ({})),
       },
-    };
-    const store = {
-      $transaction: vi.fn(async (callback) => callback(tx)),
     };
 
     await expect(
@@ -109,7 +108,19 @@ describe("judge invitation repository", () => {
       ),
     ).resolves.toEqual({ activityId: "activity-1" });
 
-    expect(tx.userRole.upsert).toHaveBeenCalledWith({
+    expect(store.judgeInvitation.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: "invitation-1",
+        acceptedAt: null,
+        expiresAt: {
+          gt: new Date("2026-06-02T00:00:00.000Z"),
+        },
+      },
+      data: {
+        acceptedAt: new Date("2026-06-02T00:00:00.000Z"),
+      },
+    });
+    expect(store.userRole.upsert).toHaveBeenCalledWith({
       where: {
         userId_role: {
           userId: "judge-1",
@@ -122,7 +133,7 @@ describe("judge invitation repository", () => {
       },
       update: {},
     });
-    expect(tx.judgeMembership.upsert).toHaveBeenCalledWith({
+    expect(store.judgeMembership.upsert).toHaveBeenCalledWith({
       where: {
         activityId_userId: {
           activityId: "activity-1",
@@ -140,7 +151,7 @@ describe("judge invitation repository", () => {
 
 describe("judge scoring repository", () => {
   it("upserts criterion scores and one judge comment for an assigned judge", async () => {
-    const tx = {
+    const store = {
       submission: {
         findUnique: vi.fn(async () => ({ id: "submission-1", activityId: "activity-1" })),
       },
@@ -157,9 +168,6 @@ describe("judge scoring repository", () => {
         upsert: vi.fn(async () => ({})),
       },
     };
-    const store = {
-      $transaction: vi.fn(async (callback) => callback(tx)),
-    };
 
     await upsertJudgeScores(
       {
@@ -174,8 +182,8 @@ describe("judge scoring repository", () => {
       { store },
     );
 
-    expect(tx.score.upsert).toHaveBeenCalledTimes(2);
-    expect(tx.score.upsert).toHaveBeenCalledWith(
+    expect(store.score.upsert).toHaveBeenCalledTimes(2);
+    expect(store.score.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
           judgeId_submissionId_criterionId: {
@@ -193,7 +201,7 @@ describe("judge scoring repository", () => {
         }),
       }),
     );
-    expect(tx.judgeComment.upsert).toHaveBeenCalledWith({
+    expect(store.judgeComment.upsert).toHaveBeenCalledWith({
       where: {
         judgeId_submissionId: {
           judgeId: "judge-1",

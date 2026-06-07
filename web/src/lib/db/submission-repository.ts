@@ -89,71 +89,86 @@ export function createSubmissionRecord(input: CreateSubmissionRecordInput) {
 }
 
 export async function createSubmissionWithImages(input: CreateSubmissionWithImagesInput) {
+  let createdSubmissionId: string | null = null;
+
   try {
-    return await prisma.$transaction(async (tx) => {
-      const activeSubmissionCount = await tx.submission.count({
-        where: {
-          activityId: input.activityId,
-          participantId: input.participantId,
-          deletedAt: null,
-        },
-      });
-      const participantSubmissionNumbers = await tx.submission.findMany({
-        where: {
-          activityId: input.activityId,
-          participantId: input.participantId,
-          participantSubmissionNumber: {
-            not: null,
-          },
-        },
-        select: {
-          participantSubmissionNumber: true,
-        },
-      });
-
-      if (activeSubmissionCount >= input.perParticipantSubmissionLimit) {
-        throw new SubmissionLimitReachedError();
-      }
-
-      const usedNumbers = new Set(
-        participantSubmissionNumbers
-          .map(({ participantSubmissionNumber }) => participantSubmissionNumber)
-          .filter((value): value is number => typeof value === "number"),
-      );
-      let participantSubmissionNumber: number | null = null;
-
-      for (let number = 1; number <= input.perParticipantSubmissionLimit; number += 1) {
-        if (!usedNumbers.has(number)) {
-          participantSubmissionNumber = number;
-          break;
-        }
-      }
-
-      if (!participantSubmissionNumber) {
-        throw new SubmissionLimitReachedError();
-      }
-
-      return tx.submission.create({
-        data: {
-          id: input.id,
-          activityId: input.activityId,
-          participantId: input.participantId,
-          participantSubmissionNumber,
-          groupId: input.groupId,
-          cardName: input.cardName,
-          gameOrSeries: input.gameOrSeries,
-          characterOrType: input.characterOrType,
-          description: input.description,
-          authorDisplayName: input.authorDisplayName,
-          reviewStatus: input.reviewStatus,
-          paymentStatus: input.paymentStatus,
-          images: {
-            create: input.images.map(toSubmissionImageCreateInput),
-          },
-        },
-      });
+    const activeSubmissionCount = await prisma.submission.count({
+      where: {
+        activityId: input.activityId,
+        participantId: input.participantId,
+        deletedAt: null,
+      },
     });
+    const participantSubmissionNumbers = await prisma.submission.findMany({
+      where: {
+        activityId: input.activityId,
+        participantId: input.participantId,
+        participantSubmissionNumber: {
+          not: null,
+        },
+      },
+      select: {
+        participantSubmissionNumber: true,
+      },
+    });
+
+    if (activeSubmissionCount >= input.perParticipantSubmissionLimit) {
+      throw new SubmissionLimitReachedError();
+    }
+
+    const usedNumbers = new Set(
+      participantSubmissionNumbers
+        .map(({ participantSubmissionNumber }) => participantSubmissionNumber)
+        .filter((value): value is number => typeof value === "number"),
+    );
+    let participantSubmissionNumber: number | null = null;
+
+    for (let number = 1; number <= input.perParticipantSubmissionLimit; number += 1) {
+      if (!usedNumbers.has(number)) {
+        participantSubmissionNumber = number;
+        break;
+      }
+    }
+
+    if (!participantSubmissionNumber) {
+      throw new SubmissionLimitReachedError();
+    }
+
+    const submission = await prisma.submission.create({
+      data: {
+        id: input.id,
+        activityId: input.activityId,
+        participantId: input.participantId,
+        participantSubmissionNumber,
+        groupId: input.groupId,
+        cardName: input.cardName,
+        gameOrSeries: input.gameOrSeries,
+        characterOrType: input.characterOrType,
+        description: input.description,
+        authorDisplayName: input.authorDisplayName,
+        reviewStatus: input.reviewStatus,
+        paymentStatus: input.paymentStatus,
+      },
+    });
+    createdSubmissionId = submission.id;
+
+    for (const file of input.images) {
+      await prisma.submissionImage.create({
+        data: {
+          submissionId: submission.id,
+          ...toSubmissionImageCreateInput(file),
+        },
+      });
+    }
+
+    return submission;
   } catch (error) {
+    if (createdSubmissionId) {
+      await prisma.submission.delete({ where: { id: createdSubmissionId } }).catch((cleanupError: unknown) => {
+        console.error("Failed to clean up partially created submission", cleanupError);
+      });
+    }
+
     if (isUniqueConstraintError(error)) {
       throw new SubmissionSlotConflictError();
     }
