@@ -1,11 +1,17 @@
-import { mkdir, unlink, writeFile } from "fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 import { randomUUID } from "crypto";
 import path from "path";
-import type { FileStorage, SavePaymentProofInput, SaveSubmissionImageInput, StoredFile } from "./file-storage";
+import type { FileStorage, SavePaymentProofInput, SaveSubmissionImageInput, StoredFile, StoredFileBody } from "./file-storage";
 import { readValidatedImageFile } from "@/lib/validation/submission";
 
 const unsafeFilenameCharacters = /[^a-zA-Z0-9._-]/g;
 const safeUploadPathSegment = /^[a-zA-Z0-9._-]+$/;
+const contentTypesByExtension = new Map([
+  [".jpg", "image/jpeg"],
+  [".jpeg", "image/jpeg"],
+  [".png", "image/png"],
+  [".webp", "image/webp"],
+]);
 
 export function getLocalUploadRoot(): string {
   return path.resolve(process.cwd(), process.env.LOCAL_UPLOAD_ROOT ?? "./uploads");
@@ -110,6 +116,43 @@ export const localFileStorage: FileStorage = {
       validatedImage,
       directoryParts: ["payment-proofs", activitySlug, ownerId],
     });
+  },
+  async readFile(fileId: string): Promise<StoredFileBody | null> {
+    const mimeType = contentTypesByExtension.get(path.extname(fileId).toLowerCase());
+
+    if (!mimeType) {
+      return null;
+    }
+
+    const absolutePath = resolveLocalUploadPath(fileId.split("/"));
+
+    if (!absolutePath) {
+      return null;
+    }
+
+    try {
+      const body = await readFile(absolutePath);
+
+      return {
+        body,
+        mimeType,
+        fileSize: body.byteLength,
+      };
+    } catch (error: unknown) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        (error.code === "ENOENT" || error.code === "ENOTDIR" || error.code === "EISDIR")
+      ) {
+        return null;
+      }
+
+      throw error;
+    }
+  },
+  deleteFile(file: StoredFile) {
+    return deleteLocalStoredFile(file);
   },
 };
 

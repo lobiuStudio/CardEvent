@@ -1,11 +1,17 @@
 import type { FileStorage } from "./file-storage";
-import { googleDriveStorage } from "./google-drive-storage";
 import { localFileStorage } from "./local-file-storage";
+import { r2FileStorage } from "./r2-storage";
 
 export function getFileStorage(): FileStorage {
-  if (process.env.FILE_STORAGE_PROVIDER === "google_drive") {
-    return googleDriveStorage;
+  const provider = process.env.FILE_STORAGE_PROVIDER ?? "local";
+
+  if (provider === "local") {
+    return localFileStorage;
   }
 
-  return localFileStorage;
+  if (provider === "r2") {
+    return r2FileStorage;
+  }
+
+  throw new Error("FILE_STORAGE_PROVIDER must be local or r2.");
 }
