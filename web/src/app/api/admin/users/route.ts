@@ -101,29 +101,34 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const passwordHash = await hashPassword(parsed.data.password);
 
+  let createdUserId: string | null = null;
+
   try {
-    const user = await prisma.$transaction(async (tx) => {
-      const createdUser = await tx.user.create({
-        data: {
-          email,
-          passwordHash,
-          displayName,
-          emailVerifiedAt: new Date(),
-        },
-      });
+    const user = await prisma.user.create({
+      data: {
+        email,
+        passwordHash,
+        displayName,
+        emailVerifiedAt: new Date(),
+      },
+    });
+    createdUserId = user.id;
 
-      await tx.userRole.create({
-        data: {
-          userId: createdUser.id,
-          role: parsed.data.role,
-        },
-      });
-
-      return createdUser;
+    await prisma.userRole.create({
+      data: {
+        userId: user.id,
+        role: parsed.data.role,
+      },
     });
 
     return successResponse(request, user.id);
   } catch (error) {
+    if (createdUserId) {
+      await prisma.user.delete({ where: { id: createdUserId } }).catch((cleanupError: unknown) => {
+        console.error("Failed to clean up partially created admin user", cleanupError);
+      });
+    }
+
     if (isUniqueConstraintError(error)) {
       return errorResponse(request, "An account with this email already exists.", 409);
     }

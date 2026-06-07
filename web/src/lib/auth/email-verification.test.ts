@@ -18,7 +18,7 @@ function createVerificationStore({
     usedAt,
   };
 
-  const tx = {
+  const store = {
     emailVerificationToken: {
       findUnique: vi.fn(async () => tokenRecord),
       updateMany: vi.fn(async ({ data, where }) => {
@@ -43,18 +43,14 @@ function createVerificationStore({
   };
 
   return {
-    store: {
-      ...tx,
-      $transaction: vi.fn(async (callback) => callback(tx)),
-    },
-    tx,
+    store,
   };
 }
 
 describe("email verification helpers", () => {
-  it("atomically consumes a verification token only once", async () => {
+  it("consumes a verification token only once", async () => {
     const now = new Date("2026-06-06T10:00:00.000Z");
-    const { store, tx } = createVerificationStore({
+    const { store } = createVerificationStore({
       expiresAt: new Date("2026-06-06T11:00:00.000Z"),
     });
 
@@ -65,12 +61,12 @@ describe("email verification helpers", () => {
       status: "error",
       title: "Verification link already used",
     });
-    expect(tx.user.update).toHaveBeenCalledTimes(1);
+    expect(store.user.update).toHaveBeenCalledTimes(1);
   });
 
   it("does not consume or verify an expired token", async () => {
     const now = new Date("2026-06-06T10:00:00.000Z");
-    const { store, tx } = createVerificationStore({
+    const { store } = createVerificationStore({
       expiresAt: new Date("2026-06-06T09:59:59.000Z"),
     });
 
@@ -78,7 +74,7 @@ describe("email verification helpers", () => {
       status: "error",
       title: "Verification link expired",
     });
-    expect(tx.emailVerificationToken.updateMany).toHaveBeenCalledTimes(1);
-    expect(tx.user.update).not.toHaveBeenCalled();
+    expect(store.emailVerificationToken.updateMany).toHaveBeenCalledTimes(1);
+    expect(store.user.update).not.toHaveBeenCalled();
   });
 });

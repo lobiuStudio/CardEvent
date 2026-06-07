@@ -87,32 +87,31 @@ export async function POST(request: Request): Promise<NextResponse> {
   const tokenHash = hashEmailVerificationToken(rawToken);
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
+  let createdUserId: string | null = null;
+
   try {
-    const user = await prisma.$transaction(async (tx) => {
-      const createdUser = await tx.user.create({
-        data: {
-          email,
-          passwordHash,
-          displayName,
-        },
-      });
+    const user = await prisma.user.create({
+      data: {
+        email,
+        passwordHash,
+        displayName,
+      },
+    });
+    createdUserId = user.id;
 
-      await tx.userRole.create({
-        data: {
-          userId: createdUser.id,
-          role: "participant",
-        },
-      });
+    await prisma.userRole.create({
+      data: {
+        userId: user.id,
+        role: "participant",
+      },
+    });
 
-      await tx.emailVerificationToken.create({
-        data: {
-          userId: createdUser.id,
-          tokenHash,
-          expiresAt,
-        },
-      });
-
-      return createdUser;
+    await prisma.emailVerificationToken.create({
+      data: {
+        userId: user.id,
+        tokenHash,
+        expiresAt,
+      },
     });
 
     const verificationUrl = createSameOriginUrl(request, `/account/verify-email/${rawToken}`).toString();
@@ -122,6 +121,12 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     return redirectResponse(request, getSafeReturnPath(parsed.data.returnTo) ?? "/activities");
   } catch (error) {
+    if (createdUserId) {
+      await prisma.user.delete({ where: { id: createdUserId } }).catch((cleanupError: unknown) => {
+        console.error("Failed to clean up partially created user", cleanupError);
+      });
+    }
+
     if (isUniqueConstraintError(error)) {
       return errorResponse(request, "An account with this email already exists.", 409);
     }

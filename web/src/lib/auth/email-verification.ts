@@ -60,9 +60,7 @@ export type EmailVerificationTransaction = {
   };
 };
 
-export type EmailVerificationStore = EmailVerificationTransaction & {
-  $transaction<T>(callback: (tx: EmailVerificationTransaction) => Promise<T>): Promise<T>;
-};
+export type EmailVerificationStore = EmailVerificationTransaction;
 
 export function hashEmailVerificationToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -146,36 +144,28 @@ export async function consumeEmailVerificationToken(
     return invalidState();
   }
 
-  const result = await store.$transaction(async (tx) => {
-    const consumed = await tx.emailVerificationToken.updateMany({
-      where: {
-        tokenHash,
-        usedAt: null,
-        expiresAt: {
-          gt: now,
-        },
+  const consumed = await store.emailVerificationToken.updateMany({
+    where: {
+      tokenHash,
+      usedAt: null,
+      expiresAt: {
+        gt: now,
       },
-      data: {
-        usedAt: now,
-      },
-    });
-
-    if (consumed.count !== 1) {
-      return { consumed: false as const };
-    }
-
-    await tx.user.update({
-      where: { id: token.userId },
-      data: { emailVerifiedAt: now },
-    });
-
-    return { consumed: true as const };
+    },
+    data: {
+      usedAt: now,
+    },
   });
 
-  if (!result.consumed) {
+  if (consumed.count !== 1) {
     const currentToken = await findToken(tokenHash, store);
     return classifyFailedConsume(currentToken, now);
   }
+
+  await store.user.update({
+    where: { id: token.userId },
+    data: { emailVerifiedAt: now },
+  });
 
   return {
     status: "success",
