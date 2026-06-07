@@ -13,7 +13,6 @@ import { prisma } from "@/lib/db/prisma";
 import { sendEmail } from "@/lib/email/email-service";
 import { submissionReceivedEmail } from "@/lib/email/messages";
 import type { StoredFile } from "@/lib/files/file-storage";
-import { deleteLocalStoredFile } from "@/lib/files/local-file-storage";
 import { getFileStorage } from "@/lib/files/storage-provider";
 import { readValidatedImageFile, submissionInputSchema } from "@/lib/validation/submission";
 
@@ -60,8 +59,8 @@ function getFirstIssueMessage(error: { issues: { message: string }[] }): string 
   return error.issues[0]?.message ?? "Enter valid submission details.";
 }
 
-async function deleteStagedFiles(files: StoredFile[]): Promise<void> {
-  const results = await Promise.allSettled(files.map((file) => deleteLocalStoredFile(file)));
+async function deleteStagedFiles(files: StoredFile[], fileStorage = getFileStorage()): Promise<void> {
+  const results = await Promise.allSettled(files.map((file) => fileStorage.deleteFile(file)));
   const rejectedResult = results.find((result): result is PromiseRejectedResult => result.status === "rejected");
 
   if (rejectedResult) {
@@ -185,7 +184,7 @@ export async function POST(request: Request, { params }: RouteContext): Promise<
     }
   } catch (error) {
     console.error("Failed to save submission images", error);
-    await deleteStagedFiles(stagedFiles);
+    await deleteStagedFiles(stagedFiles, fileStorage);
     return errorResponse(request, "Image upload failed. No submission was created.", 500, activity.slug);
   }
 
@@ -206,7 +205,7 @@ export async function POST(request: Request, { params }: RouteContext): Promise<
       images: stagedFiles,
     });
   } catch (error) {
-    await deleteStagedFiles(stagedFiles);
+    await deleteStagedFiles(stagedFiles, fileStorage);
 
     if (error instanceof SubmissionLimitReachedError) {
       return errorResponse(request, "You have reached the submission limit for this activity.", 409, activity.slug);

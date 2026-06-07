@@ -5,7 +5,6 @@ import { getCrossSiteRequestResponse } from "@/lib/auth/request-security";
 import { createPaymentProof } from "@/lib/db/payment-repository";
 import { prisma } from "@/lib/db/prisma";
 import type { StoredFile } from "@/lib/files/file-storage";
-import { deleteLocalStoredFile } from "@/lib/files/local-file-storage";
 import { getFileStorage } from "@/lib/files/storage-provider";
 import { readValidatedImageFile, type ValidatedImageFile } from "@/lib/validation/submission";
 
@@ -52,9 +51,9 @@ function isUploadedFile(value: FormDataEntryValue): value is File {
   return value instanceof File && (value.name !== "" || value.size > 0);
 }
 
-async function deleteStagedFile(file: StoredFile): Promise<void> {
+async function deleteStagedFile(file: StoredFile, fileStorage = getFileStorage()): Promise<void> {
   try {
-    await deleteLocalStoredFile(file);
+    await fileStorage.deleteFile(file);
   } catch (error) {
     console.error("Failed to clean up staged payment proof", error);
   }
@@ -189,7 +188,7 @@ export async function POST(request: Request, { params }: RouteContext): Promise<
 
     return successResponse(request, paymentProof.id);
   } catch (error) {
-    await deleteStagedFile(stagedFile);
+    await deleteStagedFile(stagedFile, fileStorage);
     console.error("Failed to create payment proof record", error);
     return errorResponse(request, "Payment proof could not be saved.", 500);
   }
