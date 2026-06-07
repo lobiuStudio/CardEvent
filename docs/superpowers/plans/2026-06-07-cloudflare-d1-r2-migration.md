@@ -490,9 +490,22 @@ git commit -m "feat: add cloudflare binding guards"
 **Files:**
 - Create: `web/src/lib/db/database-provider.ts`
 - Create: `web/src/lib/db/database-provider.test.ts`
+- Create: `web/src/lib/db/prisma.test.ts`
+- Create: `web/src/lib/db/prisma-runtime.ts`
+- Create: `web/src/lib/db/prisma-runtime.test.ts`
+- Create: `web/src/lib/db/prisma-runtime.d1.ts`
+- Create: `web/src/lib/db/prisma-runtime.d1.test.ts`
 - Modify: `web/src/lib/db/prisma.ts`
+- Modify: `web/src/lib/cloudflare/bindings.ts`
+- Modify: `web/src/lib/cloudflare/bindings.test.ts`
+- Modify: `web/next.config.ts`
 - Modify: `web/prisma/schema.prisma`
 - Modify: `web/prisma.config.ts`
+- Modify: `web/package.json`
+- Modify: `web/package-lock.json`
+- Create: `web/scripts/check-cloudflare-bundle.mjs`
+- Modify: `web/wrangler.jsonc`
+- Modify if D1 Cloudflare build statically queries DB: `web/src/app/layout.tsx`
 
 - [ ] **Step 1: Write failing provider tests**
 
@@ -580,9 +593,15 @@ npm test -- src/lib/db/database-provider.test.ts
 
 Expected: PASS.
 
-- [ ] **Step 5: Make Prisma generate Cloudflare-compatible client**
+- [ ] **Step 5: Add DB-only binding helper**
 
-Modify `web/prisma/schema.prisma` generator block to:
+Update `web/src/lib/cloudflare/bindings.ts` with `getRequiredD1Database()` so Prisma D1 startup requires only the `DB` binding, not `CARD_EVENT_UPLOADS`.
+
+Add/adjust `web/src/lib/cloudflare/bindings.test.ts` to verify `getRequiredD1Database()` returns `DB` even when R2 is missing.
+
+- [ ] **Step 6: Make Prisma generate Cloudflare and Node clients**
+
+Modify `web/prisma/schema.prisma` generator blocks to:
 
 ```prisma
 generator client {
@@ -590,9 +609,15 @@ generator client {
   output   = "../src/generated/prisma"
   runtime  = "cloudflare"
 }
+
+generator nodeClient {
+  provider = "prisma-client-js"
+}
 ```
 
-- [ ] **Step 6: Make Prisma config usable without `DATABASE_URL`**
+Keep the Cloudflare runtime client for D1 and the Node client for local sqlite, seed, and dev.
+
+- [ ] **Step 7: Make Prisma config usable without `DATABASE_URL`**
 
 Modify `web/prisma.config.ts` to:
 
@@ -607,66 +632,67 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: resolveSqliteUrl(process.env.DATABASE_URL ?? "file:./dev.db"),
+    url: resolveSqliteUrl(process.env.DATABASE_URL || "file:./dev.db"),
   },
 });
 ```
 
-- [ ] **Step 7: Update Prisma singleton**
+- [ ] **Step 8: Update Prisma singleton**
 
-Modify `web/src/lib/db/prisma.ts` to:
+Modify `web/src/lib/db/prisma.ts` so importing `prisma` does not construct a client. Export `getPrisma()` plus a lazy `prisma` proxy. The keyed cache applies in production too so the proxy does not create a fresh Prisma client on each property access.
 
-```ts
-import { PrismaD1 } from "@prisma/adapter-d1";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
-import { getRequiredCloudflareEnv } from "@/lib/cloudflare/bindings";
-import { getDatabaseProvider, resolveSqliteUrl } from "./database-provider";
-import { PrismaClient } from "../../generated/prisma/client";
+Split provider-specific Prisma startup into build-selected runtime modules:
 
-type PrismaClientInstance = InstanceType<typeof PrismaClient>;
+- `web/src/lib/db/prisma-runtime.ts`: local/default SQLite runtime with static `@prisma/client` and `@prisma/adapter-better-sqlite3` imports.
+- `web/src/lib/db/prisma-runtime.d1.ts`: Cloudflare D1 runtime with static `@prisma/adapter-d1`, `getRequiredD1Database()`, and generated Cloudflare client imports.
+- `web/next.config.ts`: alias `@/lib/db/prisma-runtime` to `prisma-runtime.d1.ts` when `DATABASE_PROVIDER=d1`, otherwise alias to `prisma-runtime.ts`.
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClientInstance | undefined;
-};
+This keeps local `npm run build && npm start` compatible with SQLite, while `npm run build:cloudflare` only exposes the D1 runtime to the Cloudflare bundle and does not trace `better-sqlite3` or native `.node` binaries into `.open-next`.
 
-function createPrismaClient(): PrismaClientInstance {
-  if (getDatabaseProvider() === "d1") {
-    const adapter = new PrismaD1(getRequiredCloudflareEnv().DB);
-    return new PrismaClient({ adapter });
-  }
+- [ ] **Step 9: Fix normal Next build heap**
 
-  const adapter = new PrismaBetterSqlite3({
-    url: resolveSqliteUrl(process.env.DATABASE_URL ?? "file:./dev.db"),
-  });
+Update `web/package.json`:
 
-  return new PrismaClient({ adapter });
-}
-
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
-
-if (process.env.NODE_ENV !== "production" && getDatabaseProvider() === "sqlite") {
-  globalForPrisma.prisma = prisma;
-}
+```json
+"build": "prisma generate && NODE_OPTIONS=--max-old-space-size=4096 next build"
 ```
 
-- [ ] **Step 8: Generate Prisma client and verify**
+Also add:
+
+```json
+"check:cloudflare-bundle": "node scripts/check-cloudflare-bundle.mjs"
+```
+
+Create `web/scripts/check-cloudflare-bundle.mjs` to fail when `.open-next/server-functions/default` contains `node_modules/better-sqlite3`, `node_modules/@prisma/adapter-better-sqlite3`, or any native `.node` file.
+
+Set Cloudflare runtime provider explicitly:
+
+- `web/package.json`: make `build:cloudflare` set `DATABASE_PROVIDER=d1` and run `check:cloudflare-bundle` after OpenNext build; make `preview:cloudflare`, `deploy:cloudflare`, and `upload:cloudflare` reuse `build:cloudflare`.
+- `web/wrangler.jsonc`: add `"vars": { "DATABASE_PROVIDER": "d1" }`.
+
+- [ ] **Step 10: Generate Prisma clients and verify**
 
 Run:
 
 ```bash
 cd web
-npx prisma generate
-npm run typecheck
-npm test -- src/lib/db/database-provider.test.ts src/lib/cloudflare/bindings.test.ts
+npm_config_cache=/tmp/cardevent-npm-cache npx prisma generate
+npm_config_cache=/tmp/cardevent-npm-cache npm run db:seed
+npm_config_cache=/tmp/cardevent-npm-cache npm run typecheck
+npm_config_cache=/tmp/cardevent-npm-cache npm test -- src/lib/db/database-provider.test.ts src/lib/db/prisma.test.ts src/lib/db/prisma-runtime.test.ts src/lib/db/prisma-runtime.d1.test.ts src/lib/cloudflare/bindings.test.ts
+npm_config_cache=/tmp/cardevent-npm-cache npm run build
+npm run start -- --port 3110
+curl -sS -o /tmp/cardevent-activities.html -w '%{http_code}\n' http://127.0.0.1:3110/activities
+npm_config_cache=/tmp/cardevent-npm-cache npm run build:cloudflare
 ```
 
-Expected: Prisma generates successfully; typecheck and focused tests pass.
+Expected: Prisma generates successfully; local seed uses the Node sqlite client; importing `prisma` is lazy; production reuses a keyed Prisma client instead of creating a new client per proxy access; typecheck, focused tests, normal build, local `npm start` SQLite smoke request, and D1 Cloudflare build pass. `build:cloudflare` runs the Cloudflare bundle check and confirms D1 output does not contain Node-only SQLite artifacts. If the D1 Cloudflare build still statically queries the DB at build time after the lazy proxy fix, add `export const dynamic = "force-dynamic";` to `web/src/app/layout.tsx` and include that in the commit.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 11: Commit**
 
 ```bash
-git add web/prisma/schema.prisma web/prisma.config.ts web/src/lib/db/database-provider.ts web/src/lib/db/database-provider.test.ts web/src/lib/db/prisma.ts web/package.json web/package-lock.json web/.gitignore
-git commit -m "feat: support prisma d1 adapter selection"
+git add docs/superpowers/plans/2026-06-07-cloudflare-d1-r2-migration.md web/prisma/schema.prisma web/prisma.config.ts web/src/lib/db/database-provider.ts web/src/lib/db/database-provider.test.ts web/src/lib/db/prisma.ts web/src/lib/db/prisma.test.ts web/src/lib/db/prisma-runtime.ts web/src/lib/db/prisma-runtime.test.ts web/src/lib/db/prisma-runtime.d1.ts web/src/lib/db/prisma-runtime.d1.test.ts web/src/lib/cloudflare/bindings.ts web/src/lib/cloudflare/bindings.test.ts web/scripts/check-cloudflare-bundle.mjs web/next.config.ts web/package.json web/package-lock.json web/wrangler.jsonc web/src/app/layout.tsx
+git commit --amend --no-edit
 ```
 
 ---

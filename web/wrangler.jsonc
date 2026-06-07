@@ -8,6 +8,9 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  "vars": {
+    "DATABASE_PROVIDER": "d1"
+  },
   "services": [
     {
       "binding": "WORKER_SELF_REFERENCE",

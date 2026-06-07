@@ -30,6 +30,19 @@ describe("Cloudflare binding helpers", () => {
     });
   });
 
+  it("returns D1 binding without requiring R2", async () => {
+    const db = { prepare: vi.fn() };
+    getCloudflareContext.mockReturnValue({
+      env: {
+        DB: db,
+      },
+    });
+
+    const { getRequiredD1Database } = await import("./bindings");
+
+    expect(getRequiredD1Database()).toBe(db);
+  });
+
   it("throws an actionable error when DB is missing", async () => {
     getCloudflareContext.mockReturnValue({
       env: {
