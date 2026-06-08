@@ -32,6 +32,15 @@ function redirectToSubmission(request: Request, submissionId: string, key: "erro
   return NextResponse.redirect(url, { status: 303 });
 }
 
+function redirectToNextSubmission(request: Request, currentSubmissionId: string, nextSubmissionId: string): NextResponse {
+  const activityId = new URL(request.url).searchParams.get("activityId");
+  const path = activityId ? `/judge/activities/${activityId}/submissions/${nextSubmissionId}` : "/judge";
+  const url = createSameOriginUrl(request, path);
+  url.searchParams.set("saved", "1");
+  url.searchParams.set("savedSubmissionId", currentSubmissionId);
+  return NextResponse.redirect(url, { status: 303 });
+}
+
 function errorResponse(request: Request, submissionId: string, error: string, status: number): NextResponse {
   if (wantsJson(request)) {
     return NextResponse.json({ error }, { status });
@@ -40,13 +49,29 @@ function errorResponse(request: Request, submissionId: string, error: string, st
   return redirectToSubmission(request, submissionId, "error", error);
 }
 
-function successResponse(request: Request, submissionId: string): NextResponse {
+function successResponse(request: Request, submissionId: string, nextSubmissionId?: string): NextResponse {
   if (wantsJson(request)) {
-    return NextResponse.json({ saved: true });
+    return NextResponse.json({
+      saved: true,
+      ...(nextSubmissionId ? { nextSubmissionId } : {}),
+    });
+  }
+
+  if (nextSubmissionId) {
+    return redirectToNextSubmission(request, submissionId, nextSubmissionId);
   }
 
   return redirectToSubmission(request, submissionId, "saved", "1");
 }
+
+type ScoreRequestBody = {
+  comment?: string;
+  nextSubmissionId?: string;
+  scores: Array<{
+    criterionId: string;
+    value: number;
+  }>;
+};
 
 async function readRequestBody(request: Request): Promise<unknown> {
   const contentType = request.headers.get("content-type") ?? "";
@@ -65,6 +90,7 @@ async function readRequestBody(request: Request): Promise<unknown> {
       value: Number(values[index]),
     })),
     comment: typeof formData.get("comment") === "string" ? formData.get("comment") : undefined,
+    nextSubmissionId: typeof formData.get("nextSubmissionId") === "string" ? formData.get("nextSubmissionId") : undefined,
   };
 }
 
@@ -86,7 +112,8 @@ export async function POST(request: Request, { params }: RouteContext): Promise<
     return errorResponse(request, submissionId, "Judge access is required.", 403);
   }
 
-  const parsed = judgeScoreSubmissionSchema.safeParse(await readRequestBody(request).catch(() => null));
+  const requestBody = (await readRequestBody(request).catch(() => null)) as Partial<ScoreRequestBody> | null;
+  const parsed = judgeScoreSubmissionSchema.safeParse(requestBody);
 
   if (!parsed.success) {
     return errorResponse(request, submissionId, "Enter scores from 0 to 10 using 0.5 increments.", 400);
@@ -123,7 +150,7 @@ export async function POST(request: Request, { params }: RouteContext): Promise<
       scores: parsed.data.scores,
       comment: parsed.data.comment,
     });
-    return successResponse(request, submissionId);
+    return successResponse(request, submissionId, requestBody?.nextSubmissionId?.trim() || undefined);
   } catch (error) {
     if (error instanceof JudgeSubmissionNotFoundError) {
       return errorResponse(request, submissionId, "Submission not found.", 404);

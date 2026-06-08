@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth/rbac";
 import { listJudgeEligibleSubmissions } from "@/lib/db/judge-repository";
 import { prisma } from "@/lib/db/prisma";
+import { JudgeScoreFormEnhancer } from "@/components/judge/judge-score-form-enhancer";
 import { ScoreButtonGroup } from "@/components/judge/score-button-group";
 import { SubmissionImageLightbox } from "@/components/judge/submission-image-lightbox";
 import { BottomActionBar } from "@/components/mobile/bottom-action-bar";
@@ -19,6 +20,7 @@ type JudgeScoringPageProps = {
   searchParams: Promise<{
     error?: string | string[];
     saved?: string | string[];
+    savedSubmissionId?: string | string[];
   }>;
 };
 
@@ -51,6 +53,7 @@ export default async function JudgeScoringPage({ params, searchParams }: JudgeSc
   const [{ activityId, submissionId }, query] = await Promise.all([params, searchParams]);
   const error = readParam(query.error);
   const saved = readParam(query.saved);
+  const savedSubmissionId = readParam(query.savedSubmissionId);
   const [membership, submission, eligibleSubmissions] = await Promise.all([
     prisma.judgeMembership.findUnique({
       where: {
@@ -125,10 +128,13 @@ export default async function JudgeScoringPage({ params, searchParams }: JudgeSc
   const nextSubmission = currentIndex >= 0 ? eligibleSubmissions[currentIndex + 1] : null;
   const scoreByCriterionId = new Map(submission.scores.map((score) => [score.criterionId, score.value]));
   const comment = submission.judgeComments[0]?.comment ?? "";
+  const draftStorageKey = `cardevent:judge-score:${submission.id}`;
+  const clearDraftStorageKey = saved ? `cardevent:judge-score:${savedSubmissionId || submission.id}` : undefined;
+  const canRestoreDraft = clearDraftStorageKey !== draftStorageKey;
 
   return (
     <>
-      <main className="cardevent-shell min-h-dvh flex-1 px-4 py-8 pb-28 text-[var(--ink)]">
+      <main className="cardevent-shell min-h-dvh flex-1 px-4 py-8 pb-44 text-[var(--ink)] sm:pb-40">
         <div className="mx-auto grid w-full max-w-5xl gap-8">
           <header className="grid gap-4">
             <Link className="text-sm font-bold text-[var(--ink-muted)] transition hover:text-[var(--ink)]" href="/judge">
@@ -171,6 +177,7 @@ export default async function JudgeScoringPage({ params, searchParams }: JudgeSc
                   <ScoreButtonGroup
                     criterionId={criterion.id}
                     description={criterion.description}
+                    draftStorageKey={canRestoreDraft ? draftStorageKey : undefined}
                     initialValue={scoreByCriterionId.get(criterion.id)}
                     key={criterion.id}
                     name={criterion.name}
@@ -189,6 +196,12 @@ export default async function JudgeScoringPage({ params, searchParams }: JudgeSc
                 id="comment"
                 maxLength={2000}
                 name="comment"
+              />
+              <JudgeScoreFormEnhancer
+                clearStorageKey={clearDraftStorageKey}
+                formId="score-form"
+                saved={Boolean(saved)}
+                storageKey={draftStorageKey}
               />
             </section>
           </form>
@@ -223,7 +236,12 @@ export default async function JudgeScoringPage({ params, searchParams }: JudgeSc
       </main>
 
       <BottomActionBar>
-        <Button className="flex-1" form="score-form" type="submit">
+        {nextSubmission ? (
+          <Button className="flex-[1.35]" form="score-form" name="nextSubmissionId" type="submit" value={nextSubmission.id}>
+            Save and next
+          </Button>
+        ) : null}
+        <Button className="flex-1" form="score-form" type="submit" variant={nextSubmission ? "secondary" : "primary"}>
           Save scores
         </Button>
         <Link
