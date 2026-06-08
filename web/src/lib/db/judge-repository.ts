@@ -93,6 +93,7 @@ export async function createJudgeInvitation(
       activityId: input.activityId,
       email: input.email?.trim().toLowerCase() || undefined,
       expiresAt: input.expiresAt,
+      rawToken,
       tokenHash: hashJudgeInvitationToken(rawToken),
     },
     select: {

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireRole } from "@/lib/auth/rbac";
 import { prisma } from "@/lib/db/prisma";
 import { AdminPageShell } from "@/components/admin/admin-page-shell";
+import { CopyInvitationLinkButton } from "@/components/admin/copy-invitation-link-button";
 import { FormField } from "@/components/forms/form-field";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -86,6 +87,8 @@ export default async function AdminJudgesPage({ params, searchParams }: AdminJud
     );
   }
 
+  const now = new Date();
+
   return (
     <AdminPageShell
       title="Judge invitations"
@@ -157,14 +160,24 @@ export default async function AdminJudgesPage({ params, searchParams }: AdminJud
             <div className="mt-5 grid gap-3">
               {activity.judgeInvitations.length ? (
                 activity.judgeInvitations.map((invitation) => (
-                  <div className="grid gap-2 rounded-md bg-zinc-100 p-3 text-sm" key={invitation.id}>
+                  <div className="grid gap-3 rounded-md bg-zinc-100 p-3 text-sm" key={invitation.id}>
                     <div className="flex flex-wrap items-center gap-2">
                       <StatusBadge
-                        label={invitation.acceptedAt ? "Accepted" : invitation.expiresAt <= new Date() ? "Expired" : "Open"}
-                        tone={invitation.acceptedAt ? "success" : invitation.expiresAt <= new Date() ? "danger" : "warning"}
+                        label={invitation.acceptedAt ? "Accepted" : invitation.expiresAt <= now ? "Expired" : "Open"}
+                        tone={invitation.acceptedAt ? "success" : invitation.expiresAt <= now ? "danger" : "warning"}
                       />
                       {invitation.email ? <span className="text-zinc-600">{invitation.email}</span> : null}
                     </div>
+                    {invitation.rawToken ? (
+                      <div className="grid gap-2">
+                        <a className="break-all font-medium text-zinc-950 underline" href={invitationUrl(invitation.rawToken)}>
+                          {invitationUrl(invitation.rawToken)}
+                        </a>
+                        <CopyInvitationLinkButton invitationUrl={invitationUrl(invitation.rawToken)} />
+                      </div>
+                    ) : (
+                      <p className="text-zinc-600">Link unavailable for invitations created before link saving.</p>
+                    )}
                     <p className="text-zinc-600">Expires {formatDate(invitation.expiresAt)}</p>
                   </div>
                 ))

@@ -13,7 +13,7 @@ function sha256(value: string): string {
 }
 
 describe("judge invitation repository", () => {
-  it("stores only a hash of the invitation token", async () => {
+  it("stores a hash for lookup and the raw token for admin resend", async () => {
     const create = vi.fn(async () => ({ id: "invitation-1" }));
     const store = {
       judgeInvitation: {
@@ -37,6 +37,7 @@ describe("judge invitation repository", () => {
         activityId: "activity-1",
         email: "judge@example.com",
         expiresAt: new Date("2026-07-01T00:00:00.000Z"),
+        rawToken: "raw-token",
         tokenHash: sha256("raw-token"),
       },
       select: {

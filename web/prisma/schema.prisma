@@ -121,6 +121,7 @@ model JudgeInvitation {
   id         String    @id @default(cuid())
   activityId String
   tokenHash  String    @unique
+  rawToken   String?
   email      String?
   expiresAt  DateTime
   acceptedAt DateTime?
