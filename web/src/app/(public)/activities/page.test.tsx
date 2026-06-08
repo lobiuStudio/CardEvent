@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ActivitiesPage from "./page";
 
@@ -55,6 +55,7 @@ describe("ActivitiesPage", () => {
         id: "open",
         slug: "open",
         title: "Open Cards",
+        coverImagePublicUrl: "/uploads/open-cover.png",
       }),
     ]);
 
@@ -67,5 +68,29 @@ describe("ActivitiesPage", () => {
     const bodyText = document.body.textContent ?? "";
     expect(bodyText.indexOf("Open Cards")).toBeLessThan(bodyText.indexOf("Future Jam"));
     expect(bodyText.indexOf("Future Jam")).toBeLessThan(bodyText.indexOf("Published Winner"));
+
+    const openCard = screen.getByRole("heading", { name: "Open Cards" }).closest("article");
+    expect(openCard).not.toBeNull();
+    const openCardQueries = within(openCard as HTMLElement);
+
+    expect(openCardQueries.getByRole("link", { name: "View Open Cards details" })).toHaveAttribute("href", "/activities/open");
+    expect(openCardQueries.getByRole("link", { name: "View rules & details / 查看規則及詳情" })).toHaveAttribute(
+      "href",
+      "/activities/open",
+    );
+    expect(openCardQueries.getByRole("link", { name: "Submit card / 提交卡牌" })).toHaveAttribute(
+      "href",
+      "/activities/open/submit",
+    );
+
+    const resultsCard = screen.getByRole("heading", { name: "Published Winner" }).closest("article");
+    expect(resultsCard).not.toBeNull();
+    const resultsCardQueries = within(resultsCard as HTMLElement);
+
+    expect(resultsCardQueries.getByRole("link", { name: "View results / 查看結果" })).toHaveAttribute(
+      "href",
+      "/activities/results/results",
+    );
+    expect(resultsCardQueries.queryByRole("link", { name: "Submit card / 提交卡牌" })).not.toBeInTheDocument();
   });
 });

@@ -17,6 +17,13 @@ type ActivityBucket = {
   activities: Activity[];
 };
 
+type ActivityAction = {
+  href: string;
+  label: BilingualCopy;
+  ariaLabel: string;
+  variant: "primary" | "secondary";
+};
+
 function formatMode(mode: string): BilingualCopy {
   return mode === "competition" ? { en: "Competition", zh: "比賽" } : { en: "Grading", zh: "評審" };
 }
@@ -90,7 +97,7 @@ function getActivityBuckets(activities: Activity[], now: Date): ActivityBucket[]
     {
       id: "open",
       title: "Accepting submissions / 接受投稿中",
-      description: "Submit cards before the nearest deadline. / 可於截止前提交作品。",
+      description: "Read the rules before submitting. / 投稿前請先查看規則。",
       activities: [],
     },
     {
@@ -135,25 +142,44 @@ function getActivityBuckets(activities: Activity[], now: Date): ActivityBucket[]
   return buckets.filter((bucket) => bucket.activities.length > 0);
 }
 
-function getActivityCta(activity: Activity, now: Date): { href: string; label: BilingualCopy } {
-  if (isSubmissionOpen(activity, now)) {
-    return {
-      href: `/activities/${activity.slug}/submit`,
-      label: { en: "Submit card", zh: "提交卡牌" },
-    };
-  }
+function getActivityActions(activity: Activity, now: Date): ActivityAction[] {
+  const detailsAction: ActivityAction = {
+    href: `/activities/${activity.slug}`,
+    label: { en: "View rules & details", zh: "查看規則及詳情" },
+    ariaLabel: "View rules & details / 查看規則及詳情",
+    variant: "primary",
+  };
 
   if (activity.resultsPublishedAt && activity.mode === "competition") {
-    return {
-      href: `/activities/${activity.slug}/results`,
-      label: { en: "View results", zh: "查看結果" },
-    };
+    return [
+      {
+        href: `/activities/${activity.slug}/results`,
+        label: { en: "View results", zh: "查看結果" },
+        ariaLabel: "View results / 查看結果",
+        variant: "primary",
+      },
+      {
+        ...detailsAction,
+        label: { en: "View activity details", zh: "查看活動詳情" },
+        ariaLabel: "View activity details / 查看活動詳情",
+        variant: "secondary",
+      },
+    ];
   }
 
-  return {
-    href: `/activities/${activity.slug}`,
-    label: { en: "View activity", zh: "查看活動" },
-  };
+  if (isSubmissionOpen(activity, now)) {
+    return [
+      detailsAction,
+      {
+        href: `/activities/${activity.slug}/submit`,
+        label: { en: "Submit card", zh: "提交卡牌" },
+        ariaLabel: "Submit card / 提交卡牌",
+        variant: "secondary",
+      },
+    ];
+  }
+
+  return [detailsAction];
 }
 
 function isSubmissionOpen(activity: Activity, now: Date): boolean {
@@ -201,7 +227,8 @@ export default async function ActivitiesPage() {
                   {bucket.activities.map((activity) => {
                     const status = getActivityStatus(activity, now);
                     const mode = formatMode(activity.mode);
-                    const cta = getActivityCta(activity, now);
+                    const actions = getActivityActions(activity, now);
+                    const detailHref = `/activities/${activity.slug}`;
 
                     return (
                       <article
@@ -210,14 +237,18 @@ export default async function ActivitiesPage() {
                       >
                         <div className="flex flex-col gap-4 p-5">
                           {activity.coverImagePublicUrl ? (
-                            <div className="-mx-5 -mt-5 aspect-[16/10] border-b-2 border-[var(--line)] bg-zinc-100">
+                            <Link
+                              aria-label={`View ${activity.title} details`}
+                              className="-mx-5 -mt-5 block aspect-[16/10] border-b-2 border-[var(--line)] bg-zinc-100 focus:outline-none focus:ring-4 focus:ring-[rgb(255_209_102_/_0.65)]"
+                              href={detailHref}
+                            >
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
                                 alt={`${activity.title} cover image`}
                                 className="h-full w-full object-cover"
                                 src={activity.coverImagePublicUrl}
                               />
-                            </div>
+                            </Link>
                           ) : null}
 
                           <div className="flex items-start justify-between gap-3">
@@ -228,7 +259,11 @@ export default async function ActivitiesPage() {
                           </div>
 
                           <div className="grid gap-2">
-                            <h3 className="text-2xl font-black leading-8 text-[var(--ink)]">{activity.title}</h3>
+                            <h3 className="text-2xl font-black leading-8 text-[var(--ink)]">
+                              <Link className="transition hover:text-zinc-700" href={detailHref}>
+                                {activity.title}
+                              </Link>
+                            </h3>
                             <p className="line-clamp-3 text-sm leading-6 text-[var(--ink-muted)]">{activity.description}</p>
                           </div>
 
@@ -252,12 +287,22 @@ export default async function ActivitiesPage() {
                           </dl>
                         </div>
 
-                        <Link
-                          className="focus-ink mx-5 mb-5 mt-1 inline-flex min-h-12 items-center justify-center rounded-md border-2 border-[var(--line)] bg-[var(--line)] px-4 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-zinc-800"
-                          href={cta.href}
-                        >
-                          <BilingualText en={cta.label.en} zh={cta.label.zh} />
-                        </Link>
+                        <div className="mx-5 mb-5 mt-1 grid gap-2">
+                          {actions.map((action) => (
+                            <Link
+                              aria-label={action.ariaLabel}
+                              className={
+                                action.variant === "primary"
+                                  ? "focus-ink inline-flex min-h-12 items-center justify-center rounded-md border-2 border-[var(--line)] bg-[var(--line)] px-4 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-zinc-800"
+                                  : "focus-ink inline-flex min-h-12 items-center justify-center rounded-md border-2 border-[var(--line)] bg-white px-4 text-sm font-bold text-[var(--ink)] transition hover:-translate-y-0.5 hover:bg-[var(--sun)]"
+                              }
+                              href={action.href}
+                              key={action.href}
+                            >
+                              <BilingualText en={action.label.en} zh={action.label.zh} />
+                            </Link>
+                          ))}
+                        </div>
                       </article>
                     );
                   })}
