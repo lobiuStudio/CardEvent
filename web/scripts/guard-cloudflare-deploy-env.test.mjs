@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const scriptPath = fileURLToPath(new URL("./guard-cloudflare-deploy-env.mjs", import.meta.url));
+const packageJsonPath = fileURLToPath(new URL("../package.json", import.meta.url));
 
 function makeRoot() {
   return mkdtempSync(path.join(tmpdir(), "cardevent-cloudflare-guard-"));
@@ -33,6 +34,12 @@ test("passes for .env.example", () => {
   const result = runGuard(root);
 
   assert.equal(result.status, 0, result.stderr);
+});
+
+test("deploy script minifies the Worker to stay under Cloudflare free size limits", () => {
+  const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
+
+  assert.match(packageJson.scripts["deploy:cloudflare"], /wrangler deploy --minify/);
 });
 
 const blockedCases = [

@@ -20,7 +20,7 @@
     "check:cloudflare-deploy-env": "node scripts/guard-cloudflare-deploy-env.mjs",
     "check:cloudflare-bundle": "node scripts/check-cloudflare-bundle.mjs",
     "dedupe:prisma-wasm": "node scripts/dedupe-prisma-wasm.mjs",
-    "deploy:cloudflare": "npm run check:cloudflare-deploy-env && npm run build:cloudflare && opennextjs-cloudflare deploy",
+    "deploy:cloudflare": "npm run check:cloudflare-deploy-env && npm run build:cloudflare && wrangler deploy --minify",
     "upload:cloudflare": "npm run check:cloudflare-deploy-env && npm run build:cloudflare && opennextjs-cloudflare upload",
     "cf:typegen": "mkdir -p .wrangler/types && wrangler types --env-interface CloudflareEnv .wrangler/types/cloudflare-env.d.ts",
     "d1:migration:init": "mkdir -p prisma/migrations && prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script > prisma/migrations/0001_init.sql",
