@@ -8,9 +8,31 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  "routes": [
+    {
+      "pattern": "2vent.lobiuhoyeah.com/*",
+      "zone_name": "lobiuhoyeah.com"
+    }
+  ],
   "vars": {
-    "DATABASE_PROVIDER": "d1"
+    "APP_BASE_URL": "https://2vent.lobiuhoyeah.com",
+    "DATABASE_PROVIDER": "d1",
+    "EMAIL_PROVIDER": "console",
+    "FILE_STORAGE_PROVIDER": "r2"
   },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cardevent-db",
+      "database_id": "f7c955fa-d0ca-4823-824f-c57ad334a0b9"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "CARD_EVENT_UPLOADS",
+      "bucket_name": "cardevent-uploads"
+    }
+  ],
   "services": [
     {
       "binding": "WORKER_SELF_REFERENCE",
