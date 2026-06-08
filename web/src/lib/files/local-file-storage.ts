@@ -1,7 +1,15 @@
 import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 import { randomUUID } from "crypto";
 import path from "path";
-import type { FileStorage, SavePaymentProofInput, SaveSubmissionImageInput, StoredFile, StoredFileBody } from "./file-storage";
+import type {
+  FileStorage,
+  SaveActivityCoverInput,
+  SavePaymentProofInput,
+  SaveSubmissionImageInput,
+  StoredFile,
+  StoredFileBody,
+} from "./file-storage";
+import type { AcceptedImageMimeType } from "@/lib/validation/submission";
 import { readValidatedImageFile } from "@/lib/validation/submission";
 
 const unsafeFilenameCharacters = /[^a-zA-Z0-9._-]/g;
@@ -56,7 +64,7 @@ async function saveBytesFile({
   bytes: Uint8Array;
   directoryParts: string[];
   extension: string;
-  mimeType: string;
+  mimeType: AcceptedImageMimeType;
   originalName: string;
 }): Promise<StoredFile> {
   const safeDirectoryParts = directoryParts.map(sanitizePathSegment);
@@ -86,7 +94,11 @@ async function saveImageFile({
   file,
   directoryParts,
   validatedImage,
-}: SaveSubmissionImageInput & { directoryParts: string[] }): Promise<StoredFile> {
+}: {
+  file: File;
+  directoryParts: string[];
+  validatedImage?: SaveSubmissionImageInput["validatedImage"];
+}): Promise<StoredFile> {
   const image = validatedImage ?? (await readValidatedImageFile(file));
 
   return saveBytesFile({
@@ -99,10 +111,15 @@ async function saveImageFile({
 }
 
 export const localFileStorage: FileStorage = {
+  saveActivityCover({ activitySlug, file, validatedImage }: SaveActivityCoverInput) {
+    return saveImageFile({
+      file,
+      validatedImage,
+      directoryParts: ["activity-covers", activitySlug],
+    });
+  },
   saveSubmissionImage({ activitySlug, submissionId, file, validatedImage }: SaveSubmissionImageInput) {
     return saveImageFile({
-      activitySlug,
-      submissionId,
       file,
       validatedImage,
       directoryParts: ["submissions", activitySlug, submissionId],
@@ -110,8 +127,6 @@ export const localFileStorage: FileStorage = {
   },
   savePaymentProof({ activitySlug, ownerId, file, validatedImage }: SavePaymentProofInput) {
     return saveImageFile({
-      activitySlug,
-      submissionId: ownerId,
       file,
       validatedImage,
       directoryParts: ["payment-proofs", activitySlug, ownerId],

@@ -31,6 +31,30 @@ describe("createActivitySchema", () => {
     expect(parsed.maxImagesPerSubmission).toBe(4);
   });
 
+  it("accepts optional activity cover image metadata", () => {
+    const parsed = createActivitySchema.parse({
+      ...validActivityInput,
+      coverImage: {
+        provider: "r2",
+        fileId: "activity-covers/spring-card-cup/cover.png",
+        publicUrl: "/uploads/activity-covers/spring-card-cup/cover.png",
+        originalName: "cover.png",
+        mimeType: "image/png",
+        fileSize: 1024,
+      },
+    });
+
+    expect(parsed.coverImage).toEqual({
+      provider: "r2",
+      fileId: "activity-covers/spring-card-cup/cover.png",
+      publicUrl: "/uploads/activity-covers/spring-card-cup/cover.png",
+      originalName: "cover.png",
+      mimeType: "image/png",
+      fileSize: 1024,
+    });
+  });
+
+
   it.each(["false", "0"])("parses %s boolean input as false", (booleanInput) => {
     const parsed = createActivitySchema.parse({
       ...validActivityInput,

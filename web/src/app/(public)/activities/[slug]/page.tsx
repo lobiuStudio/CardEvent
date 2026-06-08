@@ -319,21 +319,34 @@ export default async function ActivityDetailPage({ params }: ActivityPageProps) 
               </div>
             </div>
 
-            <aside className="paper-surface rounded-lg border-2 border-[var(--line)] p-4 ink-shadow-sm">
-              <p className="text-xs font-black uppercase text-[var(--ink-muted)]">
-                <BilingualText en="Submission window" zh="投稿時段" />
-              </p>
-              <p className="mt-3 text-2xl font-black leading-tight text-[var(--ink)]">
-                {submissionsOpen ? (
-                  <BilingualText en="Now open" zh="現正開放" />
-                ) : (
-                  <BilingualText en="Not open" zh="未開放" />
-                )}
-              </p>
-              <p className="mt-3 text-sm leading-6 text-[var(--ink-muted)]">
-                {formatBilingualDate(activity.submissionDeadlineAt, "full")}
-              </p>
-            </aside>
+            <div className="grid gap-4">
+              {activity.coverImagePublicUrl ? (
+                <div className="paper-surface overflow-hidden rounded-lg border-2 border-[var(--line)] ink-shadow-sm">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    alt={`${activity.title} cover image`}
+                    className="aspect-[4/3] w-full object-cover"
+                    src={activity.coverImagePublicUrl}
+                  />
+                </div>
+              ) : null}
+
+              <aside className="paper-surface rounded-lg border-2 border-[var(--line)] p-4 ink-shadow-sm">
+                <p className="text-xs font-black uppercase text-[var(--ink-muted)]">
+                  <BilingualText en="Submission window" zh="投稿時段" />
+                </p>
+                <p className="mt-3 text-2xl font-black leading-tight text-[var(--ink)]">
+                  {submissionsOpen ? (
+                    <BilingualText en="Now open" zh="現正開放" />
+                  ) : (
+                    <BilingualText en="Not open" zh="未開放" />
+                  )}
+                </p>
+                <p className="mt-3 text-sm leading-6 text-[var(--ink-muted)]">
+                  {formatBilingualDate(activity.submissionDeadlineAt, "full")}
+                </p>
+              </aside>
+            </div>
           </header>
 
           <section className="border-t-2 border-[var(--line)] py-7" aria-labelledby="deadlines">

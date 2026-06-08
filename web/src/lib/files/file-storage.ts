@@ -1,4 +1,4 @@
-import type { ValidatedImageFile } from "@/lib/validation/submission";
+import type { AcceptedImageMimeType, ValidatedImageFile } from "@/lib/validation/submission";
 
 type ValidatedStorageImageFile = Omit<ValidatedImageFile, "fileSize"> & {
   fileSize?: number;
@@ -9,7 +9,7 @@ export type StoredFile = {
   fileId: string;
   publicUrl: string;
   originalName: string;
-  mimeType: string;
+  mimeType: AcceptedImageMimeType;
   fileSize: number;
 };
 
@@ -33,7 +33,14 @@ export type SavePaymentProofInput = {
   validatedImage?: ValidatedStorageImageFile;
 };
 
+export type SaveActivityCoverInput = {
+  activitySlug: string;
+  file: File;
+  validatedImage?: ValidatedStorageImageFile;
+};
+
 export type FileStorage = {
+  saveActivityCover(input: SaveActivityCoverInput): Promise<StoredFile>;
   saveSubmissionImage(input: SaveSubmissionImageInput): Promise<StoredFile>;
   savePaymentProof(input: SavePaymentProofInput): Promise<StoredFile>;
   readFile(fileId: string): Promise<StoredFileBody | null>;

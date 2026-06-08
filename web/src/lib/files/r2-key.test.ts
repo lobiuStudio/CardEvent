@@ -26,6 +26,17 @@ describe("R2 object keys", () => {
     ).toBe("payment-proofs/paid-event/user-123/proof-1-receipt-webp");
   });
 
+  it("builds activity cover keys without an owner segment", () => {
+    expect(
+      buildR2ObjectKey({
+        kind: "activity-cover",
+        activitySlug: "Poster Event",
+        fileName: "Cover Art!!.jpg",
+        id: "cover-1",
+      }),
+    ).toBe("activity-covers/poster-event/cover-1-cover-art.jpg");
+  });
+
   it("keeps upload URLs app-proxied", () => {
     expect(toPublicUploadUrl("submissions/a/b/file.png")).toBe("/uploads/submissions/a/b/file.png");
   });

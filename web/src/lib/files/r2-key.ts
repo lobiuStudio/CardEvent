@@ -2,9 +2,9 @@ const unsafeObjectKeyCharacters = /[^a-zA-Z0-9._-]/g;
 const repeatedDashes = /-+/g;
 
 export type BuildR2ObjectKeyInput = {
-  kind: "submission" | "payment-proof";
+  kind: "activity-cover" | "submission" | "payment-proof";
   activitySlug: string;
-  ownerId: string;
+  ownerId?: string;
   fileName: string;
   id: string;
 };
@@ -22,11 +22,17 @@ function sanitizePathSegment(value: string): string {
 }
 
 export function buildR2ObjectKey(input: BuildR2ObjectKeyInput): string {
-  const prefix = input.kind === "submission" ? "submissions" : "payment-proofs";
+  const prefix =
+    input.kind === "activity-cover" ? "activity-covers" : input.kind === "submission" ? "submissions" : "payment-proofs";
   const safeActivitySlug = sanitizePathSegment(input.activitySlug);
-  const safeOwnerId = sanitizePathSegment(input.ownerId);
   const safeId = sanitizePathSegment(input.id);
   const safeFileName = sanitizePathSegment(input.fileName || "upload");
+
+  if (input.kind === "activity-cover") {
+    return `${prefix}/${safeActivitySlug}/${safeId}-${safeFileName}`;
+  }
+
+  const safeOwnerId = sanitizePathSegment(input.ownerId ?? "");
 
   return `${prefix}/${safeActivitySlug}/${safeOwnerId}/${safeId}-${safeFileName}`;
 }

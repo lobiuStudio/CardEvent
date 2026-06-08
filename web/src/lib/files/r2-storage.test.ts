@@ -52,6 +52,38 @@ describe("r2FileStorage", () => {
     );
   });
 
+  it("saves activity cover image metadata and writes bytes to R2", async () => {
+    const { r2FileStorage } = await import("./r2-storage");
+    const file = new File(["cover"], "Event Poster.webp", { type: "image/webp" });
+
+    const stored = await r2FileStorage.saveActivityCover({
+      activitySlug: "Summer Cards",
+      file,
+      validatedImage: {
+        bytes: new Uint8Array([4, 5, 6]),
+        extension: "webp",
+        mimeType: "image/webp",
+      },
+    });
+
+    expect(stored.provider).toBe("r2");
+    expect(stored.fileId).toContain("activity-covers/summer-cards/");
+    expect(stored.publicUrl).toBe(`/uploads/${stored.fileId}`);
+    expect(stored.originalName).toBe("Event Poster.webp");
+    expect(stored.mimeType).toBe("image/webp");
+    expect(stored.fileSize).toBe(3);
+    expect(bucket.put).toHaveBeenCalledWith(
+      stored.fileId,
+      new Uint8Array([4, 5, 6]),
+      {
+        httpMetadata: {
+          contentType: "image/webp",
+        },
+      },
+    );
+  });
+
+
   it("returns null when reading a missing object", async () => {
     const { r2FileStorage } = await import("./r2-storage");
     bucket.get.mockResolvedValue(null);

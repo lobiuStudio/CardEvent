@@ -72,10 +72,21 @@ export default async function ActivitiesPage() {
 
               return (
                 <article
-                  className="paper-surface flex min-h-[21rem] flex-col justify-between rounded-lg border-2 border-[var(--line)] p-5 transition hover:-translate-y-1 ink-shadow-sm"
+                  className="paper-surface flex min-h-[21rem] flex-col justify-between overflow-hidden rounded-lg border-2 border-[var(--line)] transition hover:-translate-y-1 ink-shadow-sm"
                   key={activity.id}
                 >
-                  <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-4 p-5">
+                    {activity.coverImagePublicUrl ? (
+                      <div className="-mx-5 -mt-5 aspect-[16/10] border-b-2 border-[var(--line)] bg-zinc-100">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          alt={`${activity.title} cover image`}
+                          className="h-full w-full object-cover"
+                          src={activity.coverImagePublicUrl}
+                        />
+                      </div>
+                    ) : null}
+
                     <div className="flex items-start justify-between gap-3">
                       <StatusBadge label={status.label} tone={status.tone} />
                       <span className="rounded-full border-2 border-[var(--line)] bg-white px-2.5 py-1 text-xs font-black text-[var(--ink)]">
@@ -109,7 +120,7 @@ export default async function ActivitiesPage() {
                   </div>
 
                   <Link
-                    className="focus-ink mt-5 inline-flex min-h-12 items-center justify-center rounded-md border-2 border-[var(--line)] bg-[var(--line)] px-4 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-zinc-800"
+                    className="focus-ink mx-5 mb-5 mt-1 inline-flex min-h-12 items-center justify-center rounded-md border-2 border-[var(--line)] bg-[var(--line)] px-4 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-zinc-800"
                     href={`/activities/${activity.slug}`}
                   >
                     <BilingualText en="View activity" zh="查看活動" />

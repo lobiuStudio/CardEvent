@@ -1,7 +1,14 @@
 import { randomUUID } from "crypto";
 import { getRequiredCloudflareEnv } from "@/lib/cloudflare/bindings";
 import { readValidatedImageFile } from "@/lib/validation/submission";
-import type { FileStorage, SavePaymentProofInput, SaveSubmissionImageInput, StoredFile, StoredFileBody } from "./file-storage";
+import type {
+  FileStorage,
+  SaveActivityCoverInput,
+  SavePaymentProofInput,
+  SaveSubmissionImageInput,
+  StoredFile,
+  StoredFileBody,
+} from "./file-storage";
 import { buildR2ObjectKey, toPublicUploadUrl } from "./r2-key";
 
 async function saveImageFile({
@@ -12,9 +19,9 @@ async function saveImageFile({
   validatedImage,
 }: {
   activitySlug: string;
-  ownerId: string;
+  ownerId?: string;
   file: File;
-  kind: "submission" | "payment-proof";
+  kind: "activity-cover" | "submission" | "payment-proof";
   validatedImage?: SaveSubmissionImageInput["validatedImage"];
 }): Promise<StoredFile> {
   const image = validatedImage ?? (await readValidatedImageFile(file));
@@ -43,6 +50,14 @@ async function saveImageFile({
 }
 
 export const r2FileStorage: FileStorage = {
+  saveActivityCover({ activitySlug, file, validatedImage }: SaveActivityCoverInput) {
+    return saveImageFile({
+      activitySlug,
+      file,
+      kind: "activity-cover",
+      validatedImage,
+    });
+  },
   saveSubmissionImage({ activitySlug, submissionId, file, validatedImage }: SaveSubmissionImageInput) {
     return saveImageFile({
       activitySlug,

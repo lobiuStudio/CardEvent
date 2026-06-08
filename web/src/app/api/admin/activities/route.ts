@@ -4,6 +4,8 @@ import { createSameOriginUrl } from "@/lib/auth/redirect";
 import { getCrossSiteRequestResponse } from "@/lib/auth/request-security";
 import { readSessionUser } from "@/lib/auth/session";
 import { createActivity } from "@/lib/db/activity-repository";
+import type { StoredFile } from "@/lib/files/file-storage";
+import { getFileStorage } from "@/lib/files/storage-provider";
 import { createActivitySchema } from "@/lib/validation/activity";
 
 export const runtime = "nodejs";
@@ -36,6 +38,13 @@ type ActivityFormBody = {
   }[];
 };
 
+type ParsedActivityRequest = {
+  values: ActivityFormBody | unknown;
+  coverImageFile?: File;
+};
+
+type FieldErrors = Record<string, string>;
+
 function wantsJson(request: Request): boolean {
   return request.headers.get("accept")?.includes("application/json") ?? false;
 }
@@ -58,6 +67,26 @@ function errorResponse(request: Request, error: string, status: number): NextRes
   }
 
   return redirectToNewActivity(request, error);
+}
+
+function validationErrorResponse(
+  request: Request,
+  fieldErrors: FieldErrors,
+  values: unknown,
+  status = 400,
+): NextResponse {
+  if (wantsJson(request)) {
+    return NextResponse.json(
+      {
+        error: "Check the highlighted fields and try again.",
+        fieldErrors,
+        values,
+      },
+      { status },
+    );
+  }
+
+  return redirectToNewActivity(request, "Check the highlighted fields and try again.");
 }
 
 function successResponse(request: Request, activity: { id: string; slug: string }): NextResponse {
@@ -129,18 +158,71 @@ function parseActivityFormData(formData: FormData): ActivityFormBody {
   };
 }
 
-async function readRequestBody(request: Request): Promise<unknown> {
+function readCoverImageFile(formData: FormData): File | undefined {
+  const file = formData.get("coverImage");
+
+  if (!(file instanceof File) || file.size === 0) {
+    return undefined;
+  }
+
+  return file;
+}
+
+async function readActivityRequest(request: Request): Promise<ParsedActivityRequest> {
   const contentType = request.headers.get("content-type") ?? "";
 
   if (contentType.includes("application/json")) {
-    return request.json();
+    return { values: await request.json() };
   }
 
-  return parseActivityFormData(await request.formData());
+  const formData = await request.formData();
+
+  return {
+    values: parseActivityFormData(formData),
+    coverImageFile: readCoverImageFile(formData),
+  };
 }
 
 function isUniqueConstraintError(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "P2002";
+}
+
+function issuePathToField(path: PropertyKey[]): string {
+  const [scope, index, field] = path;
+
+  if (scope === "groups" && typeof index === "number" && field === "name") {
+    return `groupName.${index}`;
+  }
+
+  if (scope === "criteria" && typeof index === "number" && field === "name") {
+    return `criterionName.${index}`;
+  }
+
+  if (scope === "criteria" && typeof index === "number" && field === "description") {
+    return `criterionDescription.${index}`;
+  }
+
+  return typeof scope === "string" ? scope : "form";
+}
+
+function fieldErrorsFromIssues(
+  issues: {
+    path: PropertyKey[];
+    message: string;
+  }[],
+): FieldErrors {
+  const fieldErrors: FieldErrors = {};
+
+  for (const issue of issues) {
+    const field = issuePathToField(issue.path);
+    fieldErrors[field] ??= issue.message;
+  }
+
+  return fieldErrors;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Upload failed. Try again.";
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
@@ -160,16 +242,50 @@ export async function POST(request: Request): Promise<NextResponse> {
     return errorResponse(request, "Admin access is required.", 403);
   }
 
-  const parsed = createActivitySchema.safeParse(await readRequestBody(request).catch(() => null));
+  const requestBody = await readActivityRequest(request).catch(() => null);
+
+  if (!requestBody) {
+    return validationErrorResponse(request, { form: "Enter valid activity details." }, null);
+  }
+
+  const parsed = createActivitySchema.safeParse(requestBody.values);
 
   if (!parsed.success) {
-    return errorResponse(request, "Enter valid activity details, dates, groups, criteria, and rules.", 400);
+    return validationErrorResponse(request, fieldErrorsFromIssues(parsed.error.issues), requestBody.values);
+  }
+
+  let coverImage: StoredFile | undefined;
+
+  if (requestBody.coverImageFile) {
+    try {
+      coverImage = await getFileStorage().saveActivityCover({
+        activitySlug: parsed.data.slug,
+        file: requestBody.coverImageFile,
+      });
+    } catch (error) {
+      return validationErrorResponse(
+        request,
+        {
+          coverImage: errorMessage(error),
+        },
+        requestBody.values,
+      );
+    }
   }
 
   try {
-    const activity = await createActivity(parsed.data);
+    const activity = await createActivity({
+      ...parsed.data,
+      coverImage,
+    });
     return successResponse(request, activity);
   } catch (error) {
+    if (coverImage) {
+      await getFileStorage().deleteFile(coverImage).catch((cleanupError: unknown) => {
+        console.error("Failed to clean up staged activity cover image", cleanupError);
+      });
+    }
+
     if (isUniqueConstraintError(error)) {
       return errorResponse(request, "An activity with this slug already exists.", 409);
     }

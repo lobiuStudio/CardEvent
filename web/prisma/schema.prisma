@@ -71,6 +71,12 @@ model Activity {
   paymentRequired               Boolean
   paymentInstructions           String?
   paymentChargingMode           String
+  coverImageStorageProvider     String?
+  coverImageStorageFileId       String?
+  coverImagePublicUrl           String?
+  coverImageOriginalName        String?
+  coverImageMimeType            String?
+  coverImageFileSize            Int?
   driveFolderId                 String?
   resultsPublishedAt            DateTime?
   createdAt                     DateTime  @default(now())
