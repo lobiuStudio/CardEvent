@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/rbac";
 import { prisma } from "@/lib/db/prisma";
+import { SignOutForm } from "@/components/auth/sign-out-form";
 import { StatusBadge } from "@/components/ui/status-badge";
 
 export const runtime = "nodejs";
@@ -133,6 +134,9 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
             >
               Payments ({queueCounts.payments})
             </Link>
+            <SignOutForm
+              buttonClassName="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-white px-4 text-sm font-medium text-zinc-950 ring-1 ring-zinc-200 transition hover:bg-zinc-50"
+            />
           </div>
         </header>
 

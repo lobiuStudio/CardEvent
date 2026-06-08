@@ -3,16 +3,9 @@ import { createSameOriginUrl } from "@/lib/auth/redirect";
 import { getCrossSiteRequestResponse } from "@/lib/auth/request-security";
 import { NextResponse } from "next/server";
 
-export function GET(): NextResponse {
-  return NextResponse.json(
-    { error: "Method not allowed." },
-    {
-      status: 405,
-      headers: {
-        Allow: "POST",
-      },
-    },
-  );
+export async function GET(request: Request): Promise<NextResponse> {
+  await clearSessionCookie();
+  return NextResponse.redirect(createSameOriginUrl(request, "/account/login"), { status: 303 });
 }
 
 export async function POST(request: Request): Promise<NextResponse> {

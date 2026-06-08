@@ -13,12 +13,12 @@ describe("logout route", () => {
     vi.clearAllMocks();
   });
 
-  it("rejects GET requests", () => {
-    const response = GET();
+  it("clears the session on GET for manual sign-out links", async () => {
+    const response = await GET(new Request("https://cardevent.test/account/logout"));
 
-    expect(response.status).toBe(405);
-    expect(response.headers.get("allow")).toBe("POST");
-    expect(clearSessionCookie).not.toHaveBeenCalled();
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe("https://cardevent.test/account/login");
+    expect(clearSessionCookie).toHaveBeenCalledOnce();
   });
 
   it("clears the session on POST", async () => {

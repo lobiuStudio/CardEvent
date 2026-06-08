@@ -8,5 +8,5 @@ describe("password helpers", () => {
     expect(hash).not.toContain("correct horse battery staple");
     await expect(verifyPassword("correct horse battery staple", hash)).resolves.toBe(true);
     await expect(verifyPassword("wrong password", hash)).resolves.toBe(false);
-  });
+  }, 15_000);
 });

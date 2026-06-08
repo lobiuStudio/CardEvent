@@ -19,7 +19,7 @@ export async function requireRole(role: string): Promise<SessionUser> {
   const user = await requireUser();
 
   if (!hasRole(user, role)) {
-    redirect("/");
+    redirect("/account/login");
   }
 
   return user;
