@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth/rbac";
 import { listParticipantSubmissions } from "@/lib/db/submission-repository";
+import { AccountPageHeader } from "@/components/account/account-page-header";
 import { SubmissionNextAction } from "@/components/participant/submission-next-action";
 import { BilingualText } from "@/components/ui/bilingual-text";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -133,26 +134,23 @@ export default async function AccountSubmissionsPage() {
   return (
     <main className="cardevent-shell min-h-dvh flex-1 px-4 py-8 text-[var(--ink)]">
       <div className="mx-auto grid w-full max-w-3xl gap-8">
-        <header className="grid gap-2">
-          <p className="w-fit rounded-full border-2 border-[var(--line)] bg-[var(--sky)] px-3 py-1 text-xs font-black uppercase text-[var(--ink)]">
-            <BilingualText en="Account" zh="帳戶" />
-          </p>
-          <h1 className="text-4xl font-black tracking-normal text-[var(--ink)]">
-            <BilingualText en="Your submissions" zh="我的投稿" />
-          </h1>
-          <p className="text-sm leading-6 text-[var(--ink-muted)]">
-            Review your submitted cards, images, and activity statuses.
-            <span className="block" lang="zh-HK">
-              查看你提交的卡牌、圖片及活動狀態。
-            </span>
-          </p>
-          <Link
-            className="focus-ink w-fit rounded-md border-2 border-[var(--line)] bg-white px-4 py-2 text-sm font-bold text-[var(--ink)] transition hover:bg-[var(--sun)]"
-            href="/account/results"
-          >
-            <BilingualText en="View published results" zh="查看已公布結果" />
-          </Link>
-        </header>
+        <AccountPageHeader
+          actions={
+            <Link
+              className="focus-ink inline-flex min-h-11 items-center justify-center rounded-md border-2 border-[var(--line)] bg-white px-4 text-sm font-bold text-[var(--ink)] transition hover:bg-[var(--sun)]"
+              href="/account/results"
+            >
+              <BilingualText en="View published results" zh="查看已公布結果" />
+            </Link>
+          }
+          activeSection="submissions"
+          description={{
+            en: "Review your submitted cards, images, and activity statuses.",
+            zh: "查看你提交的卡牌、圖片及活動狀態。",
+          }}
+          title={{ en: "Your submissions", zh: "我的投稿" }}
+          user={user}
+        />
 
         {submissions.length ? (
           <div className="grid gap-4 md:grid-cols-2">

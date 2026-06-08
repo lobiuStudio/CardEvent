@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth/rbac";
 import { getParticipantResults, type ParticipantResult } from "@/lib/db/result-repository";
+import { AccountPageHeader } from "@/components/account/account-page-header";
 import { BilingualText } from "@/components/ui/bilingual-text";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatBilingualDate } from "@/lib/i18n/bilingual";
@@ -130,25 +131,15 @@ export default async function AccountResultsPage() {
   return (
     <main className="cardevent-shell min-h-dvh flex-1 px-4 py-8 text-[var(--ink)]">
       <div className="mx-auto grid w-full max-w-4xl gap-8">
-        <header className="grid gap-4">
-          <Link className="text-sm font-bold text-[var(--ink-muted)] transition hover:text-[var(--ink)]" href="/account/submissions">
-            <BilingualText en="Back to submissions" zh="返回我的投稿" />
-          </Link>
-          <div className="grid gap-2">
-            <p className="w-fit rounded-full border-2 border-[var(--line)] bg-[var(--sky)] px-3 py-1 text-xs font-black uppercase text-[var(--ink)]">
-              <BilingualText en="Account" zh="帳戶" />
-            </p>
-            <h1 className="text-4xl font-black tracking-normal text-[var(--ink)]">
-              <BilingualText en="Your results" zh="我的結果" />
-            </h1>
-            <p className="text-sm leading-6 text-[var(--ink-muted)]">
-              Published score details for your submitted cards.
-              <span className="block" lang="zh-HK">
-                查看你已投稿卡牌的已公布分數詳情。
-              </span>
-            </p>
-          </div>
-        </header>
+        <AccountPageHeader
+          activeSection="results"
+          description={{
+            en: "Published score details for your submitted cards.",
+            zh: "查看你已投稿卡牌的已公布分數詳情。",
+          }}
+          title={{ en: "Your results", zh: "我的結果" }}
+          user={user}
+        />
 
         {results.length ? (
           <div className="grid gap-5">
