@@ -1,9 +1,10 @@
-/* eslint-disable @next/next/no-img-element -- Submission images come from the app upload route or storage adapter. */
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth/rbac";
 import { listJudgeEligibleSubmissions } from "@/lib/db/judge-repository";
 import { prisma } from "@/lib/db/prisma";
+import { ScoreButtonGroup } from "@/components/judge/score-button-group";
+import { SubmissionImageLightbox } from "@/components/judge/submission-image-lightbox";
 import { BottomActionBar } from "@/components/mobile/bottom-action-bar";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -20,9 +21,6 @@ type JudgeScoringPageProps = {
     saved?: string | string[];
   }>;
 };
-
-const numberInputClassName =
-  "min-h-12 w-28 rounded-md border-2 border-[var(--line)] bg-white px-3 text-base font-bold text-[var(--ink)] outline-none transition focus:ring-4 focus:ring-[rgb(255_209_102_/_0.55)]";
 
 function readParam(value: string | string[] | undefined): string {
   if (Array.isArray(value)) {
@@ -158,18 +156,7 @@ export default async function JudgeScoringPage({ params, searchParams }: JudgeSc
             </p>
           ) : null}
 
-          <section className="grid gap-4 md:grid-cols-2">
-            {submission.images.map((image) => (
-              <a className="paper-surface grid gap-2 rounded-lg border-2 border-[var(--line)] p-3 ink-shadow-sm" href={image.publicUrl} key={image.id}>
-                <img
-                  alt={image.originalName}
-                  className="aspect-[4/3] w-full rounded-md border-2 border-[var(--line)] object-cover"
-                  src={image.publicUrl}
-                />
-                <span className="text-sm font-bold text-[var(--ink-muted)]">Open larger image</span>
-              </a>
-            ))}
-          </section>
+          <SubmissionImageLightbox images={submission.images} />
 
           <form
             action={`/api/judge/submissions/${submission.id}/scores?activityId=${activityId}`}
@@ -181,26 +168,13 @@ export default async function JudgeScoringPage({ params, searchParams }: JudgeSc
               <h2 className="text-2xl font-black tracking-normal text-[var(--ink)]">Scores</h2>
               <div className="grid gap-4">
                 {submission.activity.criteria.map((criterion) => (
-                  <div className="grid gap-2 rounded-md border-2 border-[var(--line)] bg-white p-3" key={criterion.id}>
-                    <input name="criterionId" type="hidden" value={criterion.id} />
-                    <label className="grid gap-1" htmlFor={`score-${criterion.id}`}>
-                      <span className="text-base font-black text-[var(--ink)]">{criterion.name}</span>
-                      {criterion.description ? (
-                        <span className="text-sm font-medium leading-6 text-[var(--ink-muted)]">{criterion.description}</span>
-                      ) : null}
-                    </label>
-                    <input
-                      className={numberInputClassName}
-                      defaultValue={scoreByCriterionId.get(criterion.id) ?? 0}
-                      id={`score-${criterion.id}`}
-                      max={10}
-                      min={0}
-                      name="value"
-                      required
-                      step={0.5}
-                      type="number"
-                    />
-                  </div>
+                  <ScoreButtonGroup
+                    criterionId={criterion.id}
+                    description={criterion.description}
+                    initialValue={scoreByCriterionId.get(criterion.id)}
+                    key={criterion.id}
+                    name={criterion.name}
+                  />
                 ))}
               </div>
             </section>
