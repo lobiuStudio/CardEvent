@@ -27,6 +27,42 @@ function formatDate(date: Date): string {
   }).format(date);
 }
 
+function formatDeadlineDistance(date: Date): string {
+  const millisecondsPerDay = 24 * 60 * 60 * 1000;
+  const daysRemaining = Math.ceil((date.getTime() - Date.now()) / millisecondsPerDay);
+
+  if (daysRemaining < 0) {
+    return "Deadline passed / 已截止";
+  }
+
+  if (daysRemaining === 0) {
+    return "Due today / 今日截止";
+  }
+
+  if (daysRemaining === 1) {
+    return "1 day left / 尚餘 1 日";
+  }
+
+  return `${daysRemaining} days left / 尚餘 ${daysRemaining} 日`;
+}
+
+function formatRemaining(count: number): string {
+  if (count === 0) {
+    return "All scored / 全部已評";
+  }
+
+  return `${count} remaining / 尚餘 ${count} 份`;
+}
+
+function prioritizeUnscoredSubmissions<T extends { id: string }>(submissions: T[], completedSubmissionIds: Set<string>): T[] {
+  return [...submissions].sort((first, second) => {
+    const firstComplete = completedSubmissionIds.has(first.id) ? 1 : 0;
+    const secondComplete = completedSubmissionIds.has(second.id) ? 1 : 0;
+
+    return firstComplete - secondComplete;
+  });
+}
+
 export default async function JudgePage({ searchParams }: JudgePageProps) {
   const user = await requireRole("judge");
   const params = await searchParams;
@@ -108,41 +144,82 @@ export default async function JudgePage({ searchParams }: JudgePageProps) {
 
         {activitySummaries.length ? (
           <div className="grid gap-5">
-            {activitySummaries.map(({ completedSubmissionIds, membership, submissions }) => (
-              <section className="paper-surface rounded-lg border-2 border-[var(--line)] p-5 ink-shadow-sm" key={membership.id}>
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="grid gap-1">
-                    <h2 className="text-2xl font-black text-[var(--ink)]">{membership.activity.title}</h2>
-                    <p className="text-sm leading-6 text-[var(--ink-muted)]">
-                      Deadline: {formatDate(membership.activity.judgingDeadlineAt)}
-                    </p>
-                  </div>
-                  <StatusBadge
-                    label={`${completedSubmissionIds.size}/${submissions.length} complete`}
-                    tone={completedSubmissionIds.size === submissions.length && submissions.length > 0 ? "success" : "warning"}
-                  />
-                </div>
+            {activitySummaries.map(({ completedSubmissionIds, membership, submissions }) => {
+              const sortedSubmissions = prioritizeUnscoredSubmissions(submissions, completedSubmissionIds);
+              const nextUnscoredSubmission = sortedSubmissions.find((submission) => !completedSubmissionIds.has(submission.id));
+              const completedCount = completedSubmissionIds.size;
+              const remainingCount = Math.max(0, submissions.length - completedCount);
+              const progressPercent = submissions.length ? Math.round((completedCount / submissions.length) * 100) : 0;
 
-                <div className="mt-5 grid gap-3 md:grid-cols-2">
-                  {submissions.length ? (
-                    submissions.map((submission) => (
-                      <Link
-                        className="grid gap-1 rounded-md border-2 border-[var(--line)] bg-white p-4 text-sm font-bold text-[var(--ink)] transition hover:bg-[var(--sun)]"
-                        href={`/judge/activities/${membership.activityId}/submissions/${submission.id}`}
-                        key={submission.id}
-                      >
-                        <span>{submission.cardName}</span>
-                        <span className="text-xs font-medium text-[var(--ink-muted)]">
-                          {completedSubmissionIds.has(submission.id) ? "Scored" : "Needs scoring"}
+              return (
+                <section className="paper-surface rounded-lg border-2 border-[var(--line)] p-5 ink-shadow-sm" key={membership.id}>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="grid gap-1">
+                      <h2 className="text-2xl font-black text-[var(--ink)]">{membership.activity.title}</h2>
+                      <p className="text-sm leading-6 text-[var(--ink-muted)]">
+                        Deadline: {formatDate(membership.activity.judgingDeadlineAt)}
+                      </p>
+                      <p className="text-sm font-bold text-[var(--ink)]">
+                        {formatDeadlineDistance(membership.activity.judgingDeadlineAt)}
+                      </p>
+                    </div>
+                    <StatusBadge
+                      label={`${completedCount}/${submissions.length} complete`}
+                      tone={completedCount === submissions.length && submissions.length > 0 ? "success" : "warning"}
+                    />
+                  </div>
+
+                  <div className="mt-5 grid gap-3">
+                    <div className="grid gap-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                        <span className="font-black text-[var(--ink)]">
+                          {completedCount} of {submissions.length} scored
                         </span>
+                        <span className="font-bold text-[var(--ink-muted)]">{formatRemaining(remainingCount)}</span>
+                      </div>
+                      <div
+                        aria-label={`${membership.activity.title} judging progress`}
+                        aria-valuemax={submissions.length}
+                        aria-valuemin={0}
+                        aria-valuenow={completedCount}
+                        className="h-3 overflow-hidden rounded-full border-2 border-[var(--line)] bg-white"
+                        role="progressbar"
+                      >
+                        <div className="h-full bg-[var(--jade)]" style={{ width: `${progressPercent}%` }} />
+                      </div>
+                    </div>
+
+                    {nextUnscoredSubmission ? (
+                      <Link
+                        className="focus-ink inline-flex min-h-12 items-center justify-center rounded-md border-2 border-[var(--ink)] bg-[var(--ink)] px-4 text-sm font-black text-white"
+                        href={`/judge/activities/${membership.activityId}/submissions/${nextUnscoredSubmission.id}`}
+                      >
+                        Next unscored: {nextUnscoredSubmission.cardName}
                       </Link>
-                    ))
-                  ) : (
-                    <p className="text-sm leading-6 text-[var(--ink-muted)]">No eligible submissions are ready for judging.</p>
-                  )}
-                </div>
-              </section>
-            ))}
+                    ) : null}
+                  </div>
+
+                  <div className="mt-5 grid gap-3 md:grid-cols-2">
+                    {sortedSubmissions.length ? (
+                      sortedSubmissions.map((submission) => (
+                        <Link
+                          className="grid gap-1 rounded-md border-2 border-[var(--line)] bg-white p-4 text-sm font-bold text-[var(--ink)] transition hover:bg-[var(--sun)]"
+                          href={`/judge/activities/${membership.activityId}/submissions/${submission.id}`}
+                          key={submission.id}
+                        >
+                          <span>{submission.cardName}</span>
+                          <span className="text-xs font-medium text-[var(--ink-muted)]">
+                            {completedSubmissionIds.has(submission.id) ? "Scored / 已評" : "Needs scoring / 未評"}
+                          </span>
+                        </Link>
+                      ))
+                    ) : (
+                      <p className="text-sm leading-6 text-[var(--ink-muted)]">No eligible submissions are ready for judging.</p>
+                    )}
+                  </div>
+                </section>
+              );
+            })}
           </div>
         ) : (
           <section className="paper-surface rounded-lg border-2 border-[var(--line)] p-5 ink-shadow-sm">

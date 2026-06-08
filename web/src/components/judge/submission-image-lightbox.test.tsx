@@ -15,6 +15,11 @@ describe("SubmissionImageLightbox", () => {
             originalName: "front.png",
             publicUrl: "/uploads/front.png",
           },
+          {
+            id: "image-2",
+            originalName: "back.png",
+            publicUrl: "/uploads/back.png",
+          },
         ]}
       />,
     );
@@ -27,9 +32,19 @@ describe("SubmissionImageLightbox", () => {
 
     expect(dialog).toBeInTheDocument();
     expect(within(dialog).getByRole("img", { name: "front.png" })).toHaveAttribute("src", "/uploads/front.png");
+    expect(within(dialog).getByText("1 / 2")).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("button", { name: "Next image" }));
+
+    expect(screen.getByRole("dialog", { name: "back.png" })).toBeInTheDocument();
+    expect(screen.getByText("2 / 2")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Zoom in" }));
+
+    expect(screen.getByText("125%")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Close image" }));
 
-    expect(screen.queryByRole("dialog", { name: "front.png" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
