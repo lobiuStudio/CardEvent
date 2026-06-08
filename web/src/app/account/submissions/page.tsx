@@ -2,8 +2,8 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth/rbac";
 import { listParticipantSubmissions } from "@/lib/db/submission-repository";
+import { SubmissionNextAction } from "@/components/participant/submission-next-action";
 import { BilingualText } from "@/components/ui/bilingual-text";
-import { PaymentProofUploadForm } from "@/components/forms/payment-proof-upload-form";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { bilingualLabel, formatBilingualDate } from "@/lib/i18n/bilingual";
 
@@ -40,28 +40,6 @@ function getStatusTone(value: string): StatusTone {
   }
 
   return "neutral";
-}
-
-function PaymentProofSection({ submission }: { submission: Submission }) {
-  if (!submission.activity.paymentRequired || submission.paymentStatus !== "pending") {
-    return null;
-  }
-
-  if (submission.activity.paymentChargingMode === "per_card") {
-    return (
-      <PaymentProofUploadForm
-        activityId={submission.activityId}
-        chargingMode="per_card"
-        submissionId={submission.id}
-      />
-    );
-  }
-
-  if (submission.activity.paymentChargingMode === "per_participant") {
-    return <PaymentProofUploadForm activityId={submission.activityId} chargingMode="per_participant" />;
-  }
-
-  return null;
 }
 
 function SubmissionCard({ submission }: { submission: Submission }) {
@@ -135,7 +113,15 @@ function SubmissionCard({ submission }: { submission: Submission }) {
 
       {submission.description ? <p className="text-sm leading-6 text-[var(--ink-muted)]">{submission.description}</p> : null}
 
-      <PaymentProofSection submission={submission} />
+      <SubmissionNextAction
+        activityId={submission.activityId}
+        chargingMode={submission.activity.paymentChargingMode === "per_card" ? "per_card" : "per_participant"}
+        paymentInstructions={submission.activity.paymentInstructions}
+        paymentRequired={submission.activity.paymentRequired}
+        paymentStatus={submission.paymentStatus}
+        reviewStatus={submission.reviewStatus}
+        submissionId={submission.id}
+      />
     </article>
   );
 }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BottomActionBar } from "@/components/mobile/bottom-action-bar";
 import { FormField } from "@/components/forms/form-field";
+import { SubmissionFormEnhancer } from "@/components/forms/submission-form-enhancer";
 import { BilingualText } from "@/components/ui/bilingual-text";
 import { Button } from "@/components/ui/button";
 import { readSessionUser } from "@/lib/auth/session";
@@ -248,6 +249,7 @@ export default async function SubmitActivityPage({ params, searchParams }: Submi
                   />
                 )}
               </FormField>
+              <SubmissionFormEnhancer formId="submission-form" storageKey={`cardevent:submission:${activity.slug}`} />
             </section>
 
             <section className="paper-surface grid gap-5 rounded-lg border-2 border-[var(--line)] p-5 ink-shadow-sm">

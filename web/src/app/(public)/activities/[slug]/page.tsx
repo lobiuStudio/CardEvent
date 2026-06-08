@@ -293,6 +293,77 @@ function SectionTitle({ en, id, zh }: BilingualCopy & { id?: string }) {
   );
 }
 
+function getEntryStatusSummary(activity: Activity, now: Date): string {
+  if (isSubmissionOpen(activity, now)) {
+    return "Accepting submissions / 正在接受投稿";
+  }
+
+  if (now < activity.submissionStartAt) {
+    return "Opening soon / 即將開始投稿";
+  }
+
+  if (activity.resultsPublishedAt) {
+    return "Results published / 結果已公布";
+  }
+
+  return "Submissions closed / 投稿已截止";
+}
+
+function EntrySummary({ activity, now }: { activity: Activity; now: Date }) {
+  const summaryItems = [
+    {
+      label: "Status / 狀態",
+      value: getEntryStatusSummary(activity, now),
+      toneClassName: "bg-[var(--mint)]",
+    },
+    {
+      label: "Entry limit / 投稿上限",
+      value: `${activity.perParticipantSubmissionLimit} submissions per participant / 每人 ${activity.perParticipantSubmissionLimit} 份`,
+      toneClassName: "bg-[var(--sun)]",
+    },
+    {
+      label: "Images / 圖片",
+      value: `Up to ${activity.maxImagesPerSubmission} images / 最多 ${activity.maxImagesPerSubmission} 張圖片`,
+      toneClassName: "bg-[var(--sky)]",
+    },
+    {
+      label: "Payment / 付款",
+      value: activity.paymentRequired ? "Payment required / 需要付款" : "No payment required / 無需付款",
+      toneClassName: "bg-white",
+    },
+    {
+      label: "Review / 審核",
+      value: activity.reviewRequired ? "Organizer review / 主辦方審核" : "No organizer review / 無需主辦方審核",
+      toneClassName: "bg-white",
+    },
+  ];
+
+  return (
+    <section className="border-t-2 border-[var(--line)] py-7" aria-labelledby="entry-summary">
+      <div className="grid gap-2">
+        <h2 className="text-2xl font-black tracking-normal text-[var(--ink)]" id="entry-summary">
+          Entry summary / 參加摘要
+        </h2>
+        <p className="text-sm leading-6 text-[var(--ink-muted)]">
+          Key requirements before reading the full rules. / 閱讀完整規則前，先確認主要參加條件。
+        </p>
+      </div>
+
+      <dl className="mt-5 grid gap-3 md:grid-cols-2">
+        {summaryItems.map((item) => (
+          <div
+            className={`rounded-lg border-2 border-[var(--line)] p-4 ${item.toneClassName}`}
+            key={item.label}
+          >
+            <dt className="text-xs font-black uppercase text-[var(--ink-muted)]">{item.label}</dt>
+            <dd className="mt-2 text-base font-black leading-6 text-[var(--ink)]">{item.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
 export default async function ActivityDetailPage({ params, searchParams }: ActivityPageProps) {
   const [{ slug }, query] = await Promise.all([params, searchParams ?? Promise.resolve({ from: undefined })]);
   const activity = await getActivityBySlug(slug);
@@ -364,6 +435,8 @@ export default async function ActivityDetailPage({ params, searchParams }: Activ
               </aside>
             </div>
           </header>
+
+          <EntrySummary activity={activity} now={now} />
 
           <section className="border-t-2 border-[var(--line)] py-7" aria-labelledby="deadlines">
             <SectionTitle en="Deadlines" id="deadlines" zh="重要日期" />
