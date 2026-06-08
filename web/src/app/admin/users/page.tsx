@@ -1,5 +1,6 @@
 import { requireRole } from "@/lib/auth/rbac";
 import { prisma } from "@/lib/db/prisma";
+import { AdminPageShell } from "@/components/admin/admin-page-shell";
 
 export const runtime = "nodejs";
 
@@ -38,14 +39,12 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
   });
 
   return (
-    <main className="min-h-dvh flex-1 bg-zinc-50 px-4 py-8">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
-        <header className="flex flex-col gap-2">
-          <h1 className="text-3xl font-semibold tracking-normal text-zinc-950">Users</h1>
-          <p className="text-base text-zinc-600">Create admin and participant accounts.</p>
-        </header>
-
-        <section className="rounded-md border border-zinc-200 bg-white p-5 shadow-sm">
+    <AdminPageShell
+      title="Users"
+      description="Create admin and participant accounts, check verification, and audit recent access."
+      backHref="/admin"
+    >
+        <section className="min-w-0 rounded-lg border border-white/80 bg-white p-5 shadow-sm">
           <h2 className="text-xl font-semibold text-zinc-950">Create user</h2>
           <form className="mt-5 grid gap-5 md:grid-cols-2" action="/api/admin/users" method="post">
             <div className="flex flex-col gap-2">
@@ -109,11 +108,32 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
           </form>
         </section>
 
-        <section className="rounded-md border border-zinc-200 bg-white shadow-sm">
+        <section className="min-w-0 rounded-lg border border-white/80 bg-white shadow-sm">
           <div className="border-b border-zinc-200 p-5">
             <h2 className="text-xl font-semibold text-zinc-950">Recent users</h2>
           </div>
-          <div className="overflow-x-auto">
+          <div className="grid gap-3 p-4 md:hidden">
+            {users.map((user) => (
+              <article className="grid gap-3 rounded-md border border-zinc-200 bg-white p-4" key={user.id}>
+                <div>
+                  <h3 className="text-base font-semibold text-zinc-950">{user.displayName}</h3>
+                  <p className="mt-1 break-words text-sm text-zinc-600">{user.email}</p>
+                </div>
+                <dl className="grid gap-2 text-sm text-zinc-600">
+                  <div className="flex justify-between gap-4">
+                    <dt className="font-medium text-zinc-900">Roles</dt>
+                    <dd className="text-right">{user.roles.map(({ role }) => role).join(", ") || "none"}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt className="font-medium text-zinc-900">Verified</dt>
+                    <dd className="text-right">{user.emailVerifiedAt ? "Yes" : "No"}</dd>
+                  </div>
+                </dl>
+              </article>
+            ))}
+          </div>
+
+          <div className="hidden max-w-full overflow-x-auto md:block">
             <table className="w-full min-w-[640px] border-collapse text-left text-sm">
               <thead className="bg-zinc-100 text-zinc-700">
                 <tr>
@@ -138,7 +158,6 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
             </table>
           </div>
         </section>
-      </div>
-    </main>
+    </AdminPageShell>
   );
 }

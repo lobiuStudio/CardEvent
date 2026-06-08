@@ -17,10 +17,21 @@ type ActivityPageProps = {
   params: Promise<{
     slug: string;
   }>;
+  searchParams?: Promise<{
+    from?: string | string[];
+  }>;
 };
 
 function formatMode(mode: string): BilingualCopy {
   return mode === "competition" ? { en: "Competition", zh: "比賽" } : { en: "Grading", zh: "評審" };
+}
+
+function readParam(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) {
+    return value[0] ?? "";
+  }
+
+  return value ?? "";
 }
 
 function formatChargingMode(mode: string): BilingualCopy {
@@ -282,8 +293,8 @@ function SectionTitle({ en, id, zh }: BilingualCopy & { id?: string }) {
   );
 }
 
-export default async function ActivityDetailPage({ params }: ActivityPageProps) {
-  const { slug } = await params;
+export default async function ActivityDetailPage({ params, searchParams }: ActivityPageProps) {
+  const [{ slug }, query] = await Promise.all([params, searchParams ?? Promise.resolve({ from: undefined })]);
   const activity = await getActivityBySlug(slug);
 
   if (!activity) {
@@ -295,6 +306,11 @@ export default async function ActivityDetailPage({ params }: ActivityPageProps) 
   const submissionsOpen = isSubmissionOpen(activity, now);
   const mode = formatMode(activity.mode);
   const chargingMode = formatChargingMode(activity.paymentChargingMode);
+  const fromAdmin = readParam(query.from) === "admin";
+  const backHref = fromAdmin ? "/admin" : "/activities";
+  const backLabel = fromAdmin
+    ? { en: "Back to admin", zh: "返回後台" }
+    : { en: "Back to activities", zh: "返回活動列表" };
 
   return (
     <>
@@ -302,8 +318,8 @@ export default async function ActivityDetailPage({ params }: ActivityPageProps) 
         <div className="mx-auto grid w-full max-w-5xl gap-8">
           <header className="grid gap-6 py-4 lg:grid-cols-[1fr_18rem] lg:items-end">
             <div className="grid gap-5">
-              <Link className="text-sm font-bold text-[var(--ink-muted)] transition hover:text-[var(--ink)]" href="/activities">
-                <BilingualText en="Back to activities" zh="返回活動列表" />
+              <Link className="text-sm font-bold text-[var(--ink-muted)] transition hover:text-[var(--ink)]" href={backHref}>
+                <BilingualText en={backLabel.en} zh={backLabel.zh} />
               </Link>
               <div className="grid gap-3">
                 <div className="flex flex-wrap items-center gap-2">
@@ -512,9 +528,9 @@ export default async function ActivityDetailPage({ params }: ActivityPageProps) 
         )}
         <Link
           className="focus-ink flex min-h-11 items-center justify-center rounded-md border-2 border-[var(--line)] bg-white px-4 text-sm font-bold text-[var(--ink)] transition hover:bg-[var(--sun)]"
-          href="/activities"
+          href={backHref}
         >
-          <BilingualText en="Activities" zh="活動" />
+          <BilingualText en={fromAdmin ? "Admin" : "Activities"} zh={fromAdmin ? "後台" : "活動"} />
         </Link>
       </BottomActionBar>
     </>

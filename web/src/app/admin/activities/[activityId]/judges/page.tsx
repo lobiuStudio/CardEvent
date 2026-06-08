@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/rbac";
 import { prisma } from "@/lib/db/prisma";
+import { AdminPageShell } from "@/components/admin/admin-page-shell";
 import { FormField } from "@/components/forms/form-field";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -86,18 +87,19 @@ export default async function AdminJudgesPage({ params, searchParams }: AdminJud
   }
 
   return (
-    <main className="min-h-dvh flex-1 bg-zinc-50 px-4 py-8">
-      <div className="mx-auto grid w-full max-w-4xl gap-8">
-        <header className="grid gap-4">
-          <Link className="text-sm font-medium text-zinc-600 transition hover:text-zinc-950" href="/admin">
-            Back to admin
-          </Link>
-          <div className="grid gap-2">
-            <h1 className="text-3xl font-semibold tracking-normal text-zinc-950">Judge invitations</h1>
-            <p className="text-base leading-7 text-zinc-600">{activity.title}</p>
-          </div>
-        </header>
-
+    <AdminPageShell
+      title="Judge invitations"
+      description={activity.title}
+      backHref="/admin"
+      actions={
+        <Link
+          className="inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-semibold text-zinc-950 ring-1 ring-zinc-200 transition hover:bg-zinc-50"
+          href={`/activities/${activity.slug}?from=admin`}
+        >
+          View public page
+        </Link>
+      }
+    >
         {created ? (
           <section className="rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-900">
             <p className="font-semibold">Invitation link created</p>
@@ -172,7 +174,6 @@ export default async function AdminJudgesPage({ params, searchParams }: AdminJud
             </div>
           </article>
         </section>
-      </div>
-    </main>
+    </AdminPageShell>
   );
 }

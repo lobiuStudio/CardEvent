@@ -49,6 +49,9 @@ function getUnavailableMessage(activity: Activity, now: Date): string | null {
 }
 
 function LoginRequired({ slug }: { slug: string }) {
+  const submitPath = `/activities/${slug}/submit`;
+  const encodedSubmitPath = encodeURIComponent(submitPath);
+
   return (
     <main className="cardevent-shell min-h-dvh flex-1 px-4 py-8 text-[var(--ink)]">
       <div className="mx-auto grid w-full max-w-xl gap-6">
@@ -68,13 +71,13 @@ function LoginRequired({ slug }: { slug: string }) {
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
             <Link
               className="focus-ink flex min-h-12 items-center justify-center rounded-md border-2 border-[var(--line)] bg-[var(--line)] px-4 text-sm font-bold text-white transition hover:bg-zinc-800"
-              href="/account/login"
+              href={`/account/login?returnTo=${encodedSubmitPath}`}
             >
               <BilingualText en="Sign in" zh="登入" />
             </Link>
             <Link
               className="focus-ink flex min-h-12 items-center justify-center rounded-md border-2 border-[var(--line)] bg-white px-4 text-sm font-bold text-[var(--ink)] transition hover:bg-[var(--sun)]"
-              href="/account/register"
+              href={`/account/register?returnTo=${encodedSubmitPath}`}
             >
               <BilingualText en="Create account" zh="建立帳戶" />
             </Link>

@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/rbac";
 import { listPendingPaymentProofs } from "@/lib/db/payment-repository";
+import { AdminPageShell } from "@/components/admin/admin-page-shell";
 import { MobileCardList } from "@/components/mobile/mobile-card-list";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -78,7 +79,7 @@ function PaymentProofCard({ paymentProof }: { paymentProof: PaymentProof }) {
           </h2>
           <Link
             className="text-sm font-medium text-zinc-600 transition hover:text-zinc-950"
-            href={`/activities/${paymentProof.activity.slug}`}
+            href={`/activities/${paymentProof.activity.slug}?from=admin`}
           >
             {paymentProof.activity.title}
           </Link>
@@ -164,18 +165,11 @@ export default async function AdminPaymentsPage({ searchParams }: AdminPaymentsP
   const paymentProofs = await listPendingPaymentProofs();
 
   return (
-    <main className="min-h-dvh flex-1 bg-zinc-50 px-4 py-8">
-      <div className="mx-auto grid w-full max-w-6xl gap-8">
-        <header className="grid gap-4">
-          <Link className="text-sm font-medium text-zinc-600 transition hover:text-zinc-950" href="/admin">
-            Back to admin
-          </Link>
-          <div className="grid gap-2">
-            <h1 className="text-3xl font-semibold tracking-normal text-zinc-950">Payment proofs</h1>
-            <p className="text-sm leading-6 text-zinc-600">Confirm or reject uploaded payment proof images.</p>
-          </div>
-        </header>
-
+    <AdminPageShell
+      title="Payment proofs"
+      description="Confirm or reject uploaded payment proof images."
+      backHref="/admin"
+    >
         {error ? (
           <p className="rounded-md border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-700" role="alert">
             {error}
@@ -200,7 +194,6 @@ export default async function AdminPaymentsPage({ searchParams }: AdminPaymentsP
             <p className="mt-2 text-sm leading-6 text-zinc-600">Every uploaded proof has been handled.</p>
           </section>
         )}
-      </div>
-    </main>
+    </AdminPageShell>
   );
 }

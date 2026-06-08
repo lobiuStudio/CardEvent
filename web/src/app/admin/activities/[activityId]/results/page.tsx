@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth/rbac";
 import { prisma } from "@/lib/db/prisma";
 import { buildDraftResults, getResultReview, type ResultReviewRow } from "@/lib/db/result-repository";
+import { AdminPageShell } from "@/components/admin/admin-page-shell";
 import { StatusBadge } from "@/components/ui/status-badge";
 
 export const runtime = "nodejs";
@@ -86,40 +87,33 @@ export default async function AdminResultsPage({ params, searchParams }: AdminRe
   const canPublish = review.canPublish && !isPublished;
 
   return (
-    <main className="min-h-dvh flex-1 bg-zinc-50 px-4 py-8">
-      <div className="mx-auto grid w-full max-w-5xl gap-8">
-        <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div className="grid gap-3">
-            <Link className="text-sm font-medium text-zinc-600 transition hover:text-zinc-950" href="/admin">
-              Back to admin
+    <AdminPageShell
+      title="Results"
+      description={activity.title}
+      backHref="/admin"
+      actions={
+        <>
+          {review.rows.length ? (
+            <Link
+              className="inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-semibold text-zinc-950 ring-1 ring-zinc-200 transition hover:bg-zinc-50"
+              href={`/api/admin/activities/${activity.id}/results/export`}
+            >
+              Export CSV
             </Link>
-            <div className="grid gap-2">
-              <h1 className="text-3xl font-semibold tracking-normal text-zinc-950">Results</h1>
-              <p className="text-base leading-7 text-zinc-600">{activity.title}</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <StatusBadge label={isPublished ? "Published" : review.canPublish ? "Ready to publish" : "Scores missing"} tone={isPublished || review.canPublish ? "success" : "warning"} />
-              <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium uppercase tracking-normal text-zinc-500 ring-1 ring-zinc-200">
-                {activity.mode}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-2 sm:flex-row">
-            {review.rows.length ? (
-              <Link
-                className="inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-medium text-zinc-950 ring-1 ring-zinc-200 transition hover:bg-zinc-50"
-                href={`/api/admin/activities/${activity.id}/results/export`}
-              >
-                Export CSV
-              </Link>
-            ) : (
-              <span className="inline-flex min-h-11 items-center justify-center rounded-md bg-zinc-100 px-4 text-sm font-medium text-zinc-500 ring-1 ring-zinc-200">
-                Export CSV
-              </span>
-            )}
-          </div>
-        </header>
+          ) : (
+            <span className="inline-flex min-h-11 items-center justify-center rounded-md bg-zinc-100 px-4 text-sm font-semibold text-zinc-500 ring-1 ring-zinc-200">
+              Export CSV
+            </span>
+          )}
+        </>
+      }
+    >
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusBadge label={isPublished ? "Published" : review.canPublish ? "Ready to publish" : "Scores missing"} tone={isPublished || review.canPublish ? "success" : "warning"} />
+          <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium uppercase tracking-normal text-zinc-500 ring-1 ring-zinc-200">
+            {activity.mode}
+          </span>
+        </div>
 
         {published ? (
           <p className="rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800">
@@ -213,7 +207,6 @@ export default async function AdminResultsPage({ params, searchParams }: AdminRe
             </p>
           )}
         </section>
-      </div>
-    </main>
+    </AdminPageShell>
   );
 }

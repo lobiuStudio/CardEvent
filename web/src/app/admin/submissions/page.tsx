@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/rbac";
 import { listPendingReviewSubmissions } from "@/lib/db/review-repository";
+import { AdminPageShell } from "@/components/admin/admin-page-shell";
 import { FormField } from "@/components/forms/form-field";
 import { MobileCardList } from "@/components/mobile/mobile-card-list";
 import { Button } from "@/components/ui/button";
@@ -72,7 +73,7 @@ function SubmissionReviewCard({ submission }: { submission: ReviewSubmission }) 
           <h2 className="text-xl font-semibold leading-7 tracking-normal text-zinc-950">{submission.cardName}</h2>
           <Link
             className="text-sm font-medium text-zinc-600 transition hover:text-zinc-950"
-            href={`/activities/${submission.activity.slug}`}
+            href={`/activities/${submission.activity.slug}?from=admin`}
           >
             {submission.activity.title}
           </Link>
@@ -181,18 +182,11 @@ export default async function AdminSubmissionsPage({ searchParams }: AdminSubmis
   const submissions = await listPendingReviewSubmissions();
 
   return (
-    <main className="min-h-dvh flex-1 bg-zinc-50 px-4 py-8">
-      <div className="mx-auto grid w-full max-w-6xl gap-8">
-        <header className="grid gap-4">
-          <Link className="text-sm font-medium text-zinc-600 transition hover:text-zinc-950" href="/admin">
-            Back to admin
-          </Link>
-          <div className="grid gap-2">
-            <h1 className="text-3xl font-semibold tracking-normal text-zinc-950">Submission review</h1>
-            <p className="text-sm leading-6 text-zinc-600">Review cards that are waiting for organizer approval.</p>
-          </div>
-        </header>
-
+    <AdminPageShell
+      title="Submission review"
+      description="Review cards that are waiting for organizer approval."
+      backHref="/admin"
+    >
         {error ? (
           <p className="rounded-md border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-700" role="alert">
             {error}
@@ -217,7 +211,6 @@ export default async function AdminSubmissionsPage({ searchParams }: AdminSubmis
             <p className="mt-2 text-sm leading-6 text-zinc-600">Every required review has been handled.</p>
           </section>
         )}
-      </div>
-    </main>
+    </AdminPageShell>
   );
 }

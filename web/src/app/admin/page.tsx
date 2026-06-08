@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/rbac";
 import { prisma } from "@/lib/db/prisma";
-import { SignOutForm } from "@/components/auth/sign-out-form";
+import { AdminPageShell } from "@/components/admin/admin-page-shell";
+import { DeleteActivityForm } from "@/components/admin/delete-activity-form";
 import { StatusBadge } from "@/components/ui/status-badge";
 
 export const runtime = "nodejs";
@@ -9,6 +10,8 @@ export const runtime = "nodejs";
 type AdminPageProps = {
   searchParams: Promise<{
     created?: string | string[];
+    deleted?: string | string[];
+    error?: string | string[];
   }>;
 };
 
@@ -31,7 +34,7 @@ async function listRecentActivities() {
 }
 
 async function getPendingAdminQueueCounts() {
-  const [submissions, payments] = await Promise.all([
+  const [submissions, payments, users] = await Promise.all([
     prisma.submission.count({
       where: {
         deletedAt: null,
@@ -46,9 +49,10 @@ async function getPendingAdminQueueCounts() {
         status: "pending",
       },
     }),
+    prisma.user.count(),
   ]);
 
-  return { submissions, payments };
+  return { payments, submissions, users };
 }
 
 type AdminActivity = Awaited<ReturnType<typeof listRecentActivities>>[number];
@@ -97,125 +101,149 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
 
   const params = await searchParams;
   const created = readParam(params.created);
+  const deleted = readParam(params.deleted);
+  const error = readParam(params.error);
   const [activities, queueCounts] = await Promise.all([listRecentActivities(), getPendingAdminQueueCounts()]);
   const now = new Date();
 
   return (
-    <main className="min-h-dvh flex-1 bg-zinc-50 px-4 py-8">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
-        <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div className="grid gap-2">
-            <h1 className="text-3xl font-semibold tracking-normal text-zinc-950">Admin</h1>
-            <p className="text-base leading-7 text-zinc-600">Manage activities, submissions, judges, and users.</p>
-          </div>
+    <AdminPageShell
+      title="Admin"
+      description="Activity operations, approvals, payments, judges, and access."
+      actions={
+        <>
+          <Link
+            className="inline-flex min-h-11 items-center justify-center rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white transition hover:bg-zinc-800"
+            href="/admin/activities/new"
+          >
+            New activity
+          </Link>
+          <Link
+            className="inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-semibold text-zinc-950 ring-1 ring-zinc-200 transition hover:bg-zinc-50"
+            href="/admin/users"
+          >
+            Users
+          </Link>
+        </>
+      }
+    >
+      <section className="grid gap-4 md:grid-cols-4">
+        <article className="rounded-lg border border-white/80 bg-white p-5 shadow-sm">
+          <p className="text-sm font-semibold text-zinc-500">Activities</p>
+          <p className="mt-3 text-3xl font-black text-zinc-950">{activities.length}</p>
+          <p className="mt-1 text-xs leading-5 text-zinc-500">Recent items shown below</p>
+        </article>
+        <article className="rounded-lg border border-white/80 bg-white p-5 shadow-sm">
+          <p className="text-sm font-semibold text-zinc-500">Pending reviews</p>
+          <p className="mt-3 text-3xl font-black text-zinc-950">{queueCounts.submissions}</p>
+          <Link className="mt-2 inline-flex text-sm font-semibold text-zinc-700 hover:text-zinc-950" href="/admin/submissions">
+            Open reviews
+          </Link>
+        </article>
+        <article className="rounded-lg border border-white/80 bg-white p-5 shadow-sm">
+          <p className="text-sm font-semibold text-zinc-500">Payment proofs</p>
+          <p className="mt-3 text-3xl font-black text-zinc-950">{queueCounts.payments}</p>
+          <Link className="mt-2 inline-flex text-sm font-semibold text-zinc-700 hover:text-zinc-950" href="/admin/payments">
+            Open payments
+          </Link>
+        </article>
+        <article className="rounded-lg border border-white/80 bg-white p-5 shadow-sm">
+          <p className="text-sm font-semibold text-zinc-500">Users</p>
+          <p className="mt-3 text-3xl font-black text-zinc-950">{queueCounts.users}</p>
+          <Link className="mt-2 inline-flex text-sm font-semibold text-zinc-700 hover:text-zinc-950" href="/admin/users">
+            Manage users
+          </Link>
+        </article>
+      </section>
 
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Link
-              className="inline-flex min-h-11 items-center justify-center rounded-md bg-zinc-950 px-4 text-sm font-medium text-white transition hover:bg-zinc-800"
-              href="/admin/activities/new"
-            >
-              New activity
-            </Link>
-            <Link
-              className="inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-medium text-zinc-950 ring-1 ring-zinc-200 transition hover:bg-zinc-50"
-              href="/admin/users"
-            >
-              Users
-            </Link>
-            <Link
-              className="inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-medium text-zinc-950 ring-1 ring-zinc-200 transition hover:bg-zinc-50"
-              href="/admin/submissions"
-            >
-              Reviews ({queueCounts.submissions})
-            </Link>
-            <Link
-              className="inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-medium text-zinc-950 ring-1 ring-zinc-200 transition hover:bg-zinc-50"
-              href="/admin/payments"
-            >
-              Payments ({queueCounts.payments})
-            </Link>
-            <SignOutForm
-              buttonClassName="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-white px-4 text-sm font-medium text-zinc-950 ring-1 ring-zinc-200 transition hover:bg-zinc-50"
-            />
-          </div>
-        </header>
+      {created ? (
+        <p className="rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800">
+          Activity created: {created}
+        </p>
+      ) : null}
 
-        {created ? (
-          <p className="rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800">
-            Activity created: {created}
-          </p>
-        ) : null}
+      {deleted ? (
+        <p className="rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800">
+          Activity deleted: {deleted}
+        </p>
+      ) : null}
 
-        <section className="rounded-md border border-zinc-200 bg-white shadow-sm">
-          <div className="border-b border-zinc-200 p-5">
-            <h2 className="text-xl font-semibold text-zinc-950">Recent activities</h2>
-          </div>
+      {error ? (
+        <p className="rounded-md border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700" role="alert">
+          {error}
+        </p>
+      ) : null}
 
-          {activities.length ? (
-            <div className="divide-y divide-zinc-200">
-              {activities.map((activity) => {
-                const status = getActivityStatus(activity, now);
+      <section className="rounded-lg border border-white/80 bg-white shadow-sm">
+        <div className="border-b border-zinc-200 p-5">
+          <h2 className="text-xl font-semibold text-zinc-950">Recent activities</h2>
+        </div>
 
-                return (
-                  <article className="grid gap-4 p-5 md:grid-cols-[1fr_auto] md:items-center" key={activity.id}>
-                    <div className="grid gap-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <StatusBadge label={status.label} tone={status.tone} />
-                        <span className="text-xs font-medium uppercase tracking-normal text-zinc-500">
-                          {activity.mode}
-                        </span>
+        {activities.length ? (
+          <div className="divide-y divide-zinc-200">
+            {activities.map((activity) => {
+              const status = getActivityStatus(activity, now);
+
+              return (
+                <article className="grid gap-4 p-5 md:grid-cols-[1fr_auto] md:items-center" key={activity.id}>
+                  <div className="grid gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusBadge label={status.label} tone={status.tone} />
+                      <span className="text-xs font-medium uppercase tracking-normal text-zinc-500">
+                        {activity.mode}
+                      </span>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-zinc-950">{activity.title}</h3>
+                      <p className="mt-1 text-sm leading-6 text-zinc-600">{activity.description}</p>
+                    </div>
+                    <dl className="grid gap-2 text-sm text-zinc-600 sm:grid-cols-3">
+                      <div>
+                        <dt className="font-medium text-zinc-900">Deadline</dt>
+                        <dd className="mt-0.5">{formatDate(activity.submissionDeadlineAt)}</dd>
                       </div>
                       <div>
-                        <h3 className="text-lg font-semibold text-zinc-950">{activity.title}</h3>
-                        <p className="mt-1 text-sm leading-6 text-zinc-600">{activity.description}</p>
+                        <dt className="font-medium text-zinc-900">Structure</dt>
+                        <dd className="mt-0.5">
+                          {activity._count.groups} groups, {activity._count.criteria} criteria
+                        </dd>
                       </div>
-                      <dl className="grid gap-2 text-sm text-zinc-600 sm:grid-cols-3">
-                        <div>
-                          <dt className="font-medium text-zinc-900">Deadline</dt>
-                          <dd className="mt-0.5">{formatDate(activity.submissionDeadlineAt)}</dd>
-                        </div>
-                        <div>
-                          <dt className="font-medium text-zinc-900">Structure</dt>
-                          <dd className="mt-0.5">
-                            {activity._count.groups} groups, {activity._count.criteria} criteria
-                          </dd>
-                        </div>
-                        <div>
-                          <dt className="font-medium text-zinc-900">Submissions</dt>
-                          <dd className="mt-0.5">{activity._count.submissions}</dd>
-                        </div>
-                      </dl>
-                    </div>
+                      <div>
+                        <dt className="font-medium text-zinc-900">Submissions</dt>
+                        <dd className="mt-0.5">{activity._count.submissions}</dd>
+                      </div>
+                    </dl>
+                  </div>
 
-                    <div className="flex flex-col gap-2 sm:flex-row md:flex-col">
-                      <Link
-                        className="inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-medium text-zinc-950 ring-1 ring-zinc-200 transition hover:bg-zinc-50"
-                        href={`/activities/${activity.slug}`}
-                      >
-                        View
-                      </Link>
-                      <Link
-                        className="inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-medium text-zinc-950 ring-1 ring-zinc-200 transition hover:bg-zinc-50"
-                        href={`/admin/activities/${activity.id}/judges`}
-                      >
-                        Judges
-                      </Link>
-                      <Link
-                        className="inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-medium text-zinc-950 ring-1 ring-zinc-200 transition hover:bg-zinc-50"
-                        href={`/admin/activities/${activity.id}/results`}
-                      >
-                        Results
-                      </Link>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="p-5 text-sm text-zinc-600">No activities have been created yet.</p>
-          )}
-        </section>
-      </div>
-    </main>
+                  <div className="flex flex-col gap-2 sm:flex-row md:flex-col">
+                    <Link
+                      className="inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-medium text-zinc-950 ring-1 ring-zinc-200 transition hover:bg-zinc-50"
+                      href={`/activities/${activity.slug}?from=admin`}
+                    >
+                      View
+                    </Link>
+                    <Link
+                      className="inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-medium text-zinc-950 ring-1 ring-zinc-200 transition hover:bg-zinc-50"
+                      href={`/admin/activities/${activity.id}/judges`}
+                    >
+                      Judges
+                    </Link>
+                    <Link
+                      className="inline-flex min-h-11 items-center justify-center rounded-md bg-white px-4 text-sm font-medium text-zinc-950 ring-1 ring-zinc-200 transition hover:bg-zinc-50"
+                      href={`/admin/activities/${activity.id}/results`}
+                    >
+                      Results
+                    </Link>
+                    <DeleteActivityForm activityId={activity.id} activityTitle={activity.title} />
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="p-5 text-sm text-zinc-600">No activities have been created yet.</p>
+        )}
+      </section>
+    </AdminPageShell>
   );
 }
